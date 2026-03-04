@@ -22,7 +22,33 @@ pub fn get_linker_args(
     _target_os: Option<String>,
     _target_env: Option<String>,
 ) -> Vec<String> {
-    vec!["-arch".to_string(), "arm64".to_string(), "-lc".to_string()]
+    use std::io::Read;
+
+    let mut s = String::new();
+
+    std::process::Command::new("xcrun")
+        .arg("-sdk")
+        .arg("macosx")
+        .arg("--show-sdk-path")
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap()
+        .stdout
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
+
+    vec![
+        "-arch".to_string(),
+        "arm64".to_string(),
+        "-platform_version".to_string(),
+        "macos".to_string(),
+        "14.0".to_string(),
+        "15.5".to_string(),
+        "-lc".to_string(),
+        "-syslibroot".to_string(),
+        s,
+    ]
 }
 
 pub fn run_linker(
