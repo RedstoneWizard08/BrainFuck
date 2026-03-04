@@ -11,11 +11,11 @@ pub enum OptAction {
     Dec,
     Output,
     Input,
-    AddValue(usize),
-    SubValue(usize),
+    AddValue(i64),
+    SubValue(i64),
     SetValue(usize),
-    MoveRight(usize),
-    MoveLeft(usize),
+    MoveRight(i64),
+    MoveLeft(i64),
     /// (length_to_zero)
     /// Make sure to move right the same amount!!
     ZeroRight(usize),
@@ -49,7 +49,7 @@ pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
 pub struct Optimizer {
     actions: Vec<OptAction>,
 
-    counter: usize,
+    counter: i64,
     last_kind: OptAction,
 }
 
@@ -69,20 +69,34 @@ impl Optimizer {
 
     pub fn try_chain(&mut self, insn: OptAction) {
         if self.last_kind != insn {
-            let mut kind = OptAction::Noop;
+            match (&self.last_kind, &insn) {
+                (OptAction::Right, OptAction::Left) => {
+                    self.counter -= 1;
+                    return;
+                }
 
-            std::mem::swap(&mut kind, &mut self.last_kind);
+                (OptAction::Left, OptAction::Right) => {
+                    self.counter -= 1;
+                    return;
+                }
 
-            match kind {
-                OptAction::Right => self.actions.push(OptAction::MoveRight(self.counter)),
-                OptAction::Left => self.actions.push(OptAction::MoveLeft(self.counter)),
-                OptAction::Inc => self.actions.push(OptAction::AddValue(self.counter)),
-                OptAction::Dec => self.actions.push(OptAction::SubValue(self.counter)),
+                _ => {
+                    let mut kind = OptAction::Noop;
 
-                it => self.actions.push(it),
-            };
+                    std::mem::swap(&mut kind, &mut self.last_kind);
 
-            self.reset_chain();
+                    match kind {
+                        OptAction::Right => self.actions.push(OptAction::MoveRight(self.counter)),
+                        OptAction::Left => self.actions.push(OptAction::MoveLeft(self.counter)),
+                        OptAction::Inc => self.actions.push(OptAction::AddValue(self.counter)),
+                        OptAction::Dec => self.actions.push(OptAction::SubValue(self.counter)),
+
+                        it => self.actions.push(it),
+                    };
+
+                    self.reset_chain();
+                }
+            }
         }
 
         if !insn.can_chain() {
@@ -188,7 +202,7 @@ impl Optimizer {
                 other => {
                     was_loop = false;
                     self.actions.push(other);
-                },
+                }
             }
         }
     }

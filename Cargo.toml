@@ -7,6 +7,7 @@ edition = "2024"
 anyhow = "1.0.102"
 clap = { version = "4.5.60", features = ["derive"] }
 cranelift = "0.129.1"
+cranelift-codegen = { version = "0.129.1", features = ["capstone", "disas"] }
 cranelift-jit = "0.129.1"
 cranelift-module = "0.129.1"
 cranelift-native = "0.129.1"

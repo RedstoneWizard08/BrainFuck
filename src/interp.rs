@@ -17,32 +17,32 @@ impl ProgramState {
     }
 
     #[inline(always)]
-    pub fn add(&mut self, amnt: usize) {
+    pub fn add(&mut self, amnt: i64) {
         self.tape[self.tape_ptr] =
-            self.tape[self.tape_ptr].wrapping_add((amnt % u8::MAX as usize) as u8);
+            self.tape[self.tape_ptr].wrapping_add((amnt as usize % u8::MAX as usize) as u8);
     }
 
     #[inline(always)]
-    pub fn sub(&mut self, amnt: usize) {
+    pub fn sub(&mut self, amnt: i64) {
         self.tape[self.tape_ptr] =
-            self.tape[self.tape_ptr].wrapping_sub((amnt % u8::MAX as usize) as u8);
+            self.tape[self.tape_ptr].wrapping_sub((amnt as usize % u8::MAX as usize) as u8);
     }
 
     #[inline(always)]
-    pub fn right(&mut self, amnt: usize) {
-        if self.tape_ptr + amnt >= TAPE_SIZE {
-            self.tape_ptr = self.tape_ptr + amnt - TAPE_SIZE;
+    pub fn right(&mut self, amnt: i64) {
+        if self.tape_ptr + amnt as usize >= TAPE_SIZE {
+            self.tape_ptr = self.tape_ptr + amnt as usize - TAPE_SIZE;
         } else {
-            self.tape_ptr += amnt;
+            self.tape_ptr += amnt as usize;
         }
     }
 
     #[inline(always)]
-    pub fn left(&mut self, amnt: usize) {
+    pub fn left(&mut self, amnt: i64) {
         if self.tape_ptr <= 0 {
-            self.tape_ptr = TAPE_SIZE - amnt;
+            self.tape_ptr = TAPE_SIZE - amnt as usize;
         } else {
-            self.tape_ptr -= amnt;
+            self.tape_ptr -= amnt as usize;
         }
     }
 
