@@ -1,10 +1,10 @@
+use crate::linker::command_exists;
 use anyhow::Result;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
-use target_lexicon::{Environment, Triple};
-use crate::linker::command_exists;
+use target_lexicon::Triple;
 
 pub fn get_default_linker() -> &'static str {
     for cmd in &["mold", "ld"] {
@@ -22,10 +22,7 @@ pub fn get_linker_args(
     _target_os: Option<String>,
     _target_env: Option<String>,
 ) -> Vec<String> {
-    vec![
-        "-O2".to_string(),
-        "-lc".to_string(),
-    ]
+    vec!["-arch".to_string(), "arm64".to_string(), "-lc".to_string()]
 }
 
 pub fn run_linker(
