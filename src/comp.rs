@@ -16,7 +16,7 @@ use cranelift_codegen::control::ControlPlane;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{FuncId, Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::{fs, mem, path::PathBuf};
+use std::{collections::BTreeMap, fs, mem, path::PathBuf};
 use target_lexicon::Triple;
 
 pub struct CompilerOptions {
@@ -147,11 +147,10 @@ impl<M: Module> Compiler<M> {
     }
 }
 
-pub struct CodeGenerator<'a, M: Module> {
+pub struct CodeGenerator<'a> {
     byte: Type,
     ptr: Type,
     fb: FunctionBuilder<'a>,
-    module: &'a mut M,
     needs_exit: bool,
     opts: &'a CompilerOptions,
 
@@ -165,8 +164,8 @@ pub struct CodeGenerator<'a, M: Module> {
     exit: FuncRef,
 }
 
-impl<'a, M: Module> CodeGenerator<'a, M> {
-    pub fn new(
+impl<'a> CodeGenerator<'a> {
+    pub fn new<M: Module>(
         mut fb: FunctionBuilder<'a>,
         module: &'a mut M,
         needs_exit: bool,
@@ -231,7 +230,6 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             byte,
             ptr,
             fb,
-            module,
             tape,
             tape_ptr,
             putchar,
@@ -254,26 +252,29 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         }
     }
 
-    pub fn translate(&mut self, insn: &OptAction) {
+    fn translate(&mut self, insn: &OptAction) {
         match insn {
             OptAction::Noop => (),
-            OptAction::Right => self.move_right(1),
-            OptAction::Left => self.move_left(1),
-            OptAction::Inc => self.add_slot(1),
-            OptAction::Dec => self.add_slot(-1),
             OptAction::Output => self.print_slot(),
             OptAction::Input => self.input_slot(),
             OptAction::Loop(actions) => self.translate_loop(actions),
             OptAction::AddValue(v) => self.add_slot(*v as i64),
-            OptAction::SubValue(v) => self.add_slot(-(*v as i64)),
             OptAction::SetValue(v) => self.set_slot(*v as i64),
-            OptAction::MoveRight(v) => self.move_right(*v),
-            OptAction::MoveLeft(v) => self.move_left(*v),
-            OptAction::ZeroRight(v) => self.zero_right(*v as i64),
+            OptAction::MovePtr(v) => self.move_ptr(*v),
+            OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
+            OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
+
+            OptAction::CopyLoop(v) => {
+                if self.opts.unsafe_mode {
+                    self.unsafe_copy_loop(&v)
+                } else {
+                    panic!("The CopyLoop optimization is only supported in unsafe mode!")
+                }
+            }
         }
     }
 
-    pub fn translate_loop(&mut self, actions: &Vec<OptAction>) {
+    fn translate_loop(&mut self, actions: &Vec<OptAction>) {
         let header = self.fb.create_block();
         let body = self.fb.create_block();
         let exit = self.fb.create_block();
@@ -301,14 +302,14 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
 
     // "Unsafe" methods use the tape_ptr as a literal pointer instead of an index into the tape array
 
-    pub fn print_slot(&mut self) {
+    fn print_slot(&mut self) {
         let value = self.read_from_arr();
         let value = self.fb.ins().uextend(types::I32, value);
 
         self.fb.ins().call(self.putchar, &[value]);
     }
 
-    pub fn input_slot(&mut self) {
+    fn input_slot(&mut self) {
         let call = self.fb.ins().call(self.getchar, &[]);
         let value = self.fb.inst_results(call)[0];
         let value = self.fb.ins().ireduce(self.byte, value);
@@ -316,7 +317,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.write_to_arr(value);
     }
 
-    pub fn write_to_arr(&mut self, value: Value) {
+    fn write_to_arr(&mut self, value: Value) {
         if self.opts.unsafe_mode {
             return self.unsafe_write_to_arr(value);
         }
@@ -328,13 +329,13 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.fb.ins().store(MemFlags::new(), value, final_addr, 0);
     }
 
-    pub fn unsafe_write_to_arr(&mut self, value: Value) {
+    fn unsafe_write_to_arr(&mut self, value: Value) {
         let base_addr = self.fb.use_var(self.tape_ptr);
 
         self.fb.ins().store(MemFlags::new(), value, base_addr, 0);
     }
 
-    pub fn add_slot(&mut self, amount: i64) {
+    fn add_slot(&mut self, amount: i64) {
         if self.opts.unsafe_mode {
             return self.unsafe_add_slot(amount);
         }
@@ -353,7 +354,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.fb.ins().store(MemFlags::new(), value, final_addr, 0);
     }
 
-    pub fn unsafe_add_slot(&mut self, amount: i64) {
+    fn unsafe_add_slot(&mut self, amount: i64) {
         let base_addr = self.fb.use_var(self.tape_ptr);
         let value = self.fb.ins().load(self.byte, MemFlags::new(), base_addr, 0);
         let value = self.fb.ins().iadd_imm(value, amount);
@@ -361,7 +362,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.fb.ins().store(MemFlags::new(), value, base_addr, 0);
     }
 
-    pub fn set_slot(&mut self, value: i64) {
+    fn set_slot(&mut self, value: i64) {
         if self.opts.unsafe_mode {
             return self.unsafe_set_slot(value);
         }
@@ -375,7 +376,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.fb.ins().store(MemFlags::new(), value, final_addr, 0);
     }
 
-    pub fn unsafe_set_slot(&mut self, value: i64) {
+    fn unsafe_set_slot(&mut self, value: i64) {
         let base_addr = self.fb.use_var(self.tape_ptr);
         let value = self.fb.ins().iconst(types::I64, value);
         let value = self.fb.ins().ireduce(self.byte, value);
@@ -383,31 +384,64 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.fb.ins().store(MemFlags::new(), value, base_addr, 0);
     }
 
-    pub fn zero_right(&mut self, length: i64) {
+    fn set_move(&mut self, value: i64, offset: i64) {
         if self.opts.unsafe_mode {
-            return self.unsafe_zero_right(length);
+            return self.unsafe_set_move(value, offset);
         }
 
-        let offset = self.fb.use_var(self.tape_ptr);
+        let offset_v = self.fb.use_var(self.tape_ptr);
+        let post = self.fb.ins().iadd_imm(offset_v, offset);
         let base_addr = self.fb.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.fb.ins().iadd(base_addr, offset);
-        let zero = self.fb.ins().iconst(self.byte, 0);
-        let size = self.fb.ins().iconst(types::I64, length);
+        let final_addr = self.fb.ins().iadd(base_addr, offset_v);
+        let value = self.fb.ins().iconst(types::I64, value);
+        let value = self.fb.ins().ireduce(self.byte, value);
 
-        self.fb
-            .call_memset(self.module.target_config(), final_addr, zero, size);
+        self.fb.ins().store(MemFlags::new(), value, final_addr, 0);
+        self.fb.def_var(self.tape_ptr, post);
     }
 
-    pub fn unsafe_zero_right(&mut self, length: i64) {
+    fn unsafe_set_move(&mut self, value: i64, offset: i64) {
         let base_addr = self.fb.use_var(self.tape_ptr);
-        let zero = self.fb.ins().iconst(self.byte, 0);
-        let size = self.fb.ins().iconst(types::I64, length);
+        let post = self.fb.ins().iadd_imm(base_addr, offset);
+        let value = self.fb.ins().iconst(types::I64, value);
+        let value = self.fb.ins().ireduce(self.byte, value);
 
-        self.fb
-            .call_memset(self.module.target_config(), base_addr, zero, size);
+        self.fb.ins().store(MemFlags::new(), value, base_addr, 0);
+        self.fb.def_var(self.tape_ptr, post);
     }
 
-    pub fn read_from_arr(&mut self) -> Value {
+    fn add_move(&mut self, amount: i64, offset: i64) {
+        if self.opts.unsafe_mode {
+            return self.unsafe_add_move(amount, offset);
+        }
+
+        let offset_v = self.fb.use_var(self.tape_ptr);
+        let post = self.fb.ins().iadd_imm(offset_v, offset);
+        let base_addr = self.fb.ins().stack_addr(self.ptr, self.tape, 0);
+        let final_addr = self.fb.ins().iadd(base_addr, offset_v);
+
+        let value = self
+            .fb
+            .ins()
+            .load(self.byte, MemFlags::new(), final_addr, 0);
+
+        let value = self.fb.ins().iadd_imm(value, amount);
+
+        self.fb.ins().store(MemFlags::new(), value, final_addr, 0);
+        self.fb.def_var(self.tape_ptr, post);
+    }
+
+    fn unsafe_add_move(&mut self, amount: i64, offset: i64) {
+        let base_addr = self.fb.use_var(self.tape_ptr);
+        let post = self.fb.ins().iadd_imm(base_addr, offset);
+        let value = self.fb.ins().load(self.byte, MemFlags::new(), base_addr, 0);
+        let value = self.fb.ins().iadd_imm(value, amount);
+
+        self.fb.ins().store(MemFlags::new(), value, base_addr, 0);
+        self.fb.def_var(self.tape_ptr, post);
+    }
+
+    fn read_from_arr(&mut self) -> Value {
         if self.opts.unsafe_mode {
             return self.unsafe_read_from_arr();
         }
@@ -421,13 +455,13 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             .load(self.byte, MemFlags::new(), final_addr, 0)
     }
 
-    pub fn unsafe_read_from_arr(&mut self) -> Value {
+    fn unsafe_read_from_arr(&mut self) -> Value {
         let base_addr = self.fb.use_var(self.tape_ptr);
 
         self.fb.ins().load(self.byte, MemFlags::new(), base_addr, 0)
     }
 
-    pub fn move_right(&mut self, amount: i64) {
+    fn move_ptr(&mut self, amount: i64) {
         if self.opts.unsafe_mode {
             return self.unsafe_move_right(amount);
         }
@@ -435,48 +469,48 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         let value = self.fb.use_var(self.tape_ptr);
         let value = self.fb.ins().iadd_imm(value, amount as i64);
 
-        let did_hit = self.fb.ins().icmp_imm(
+        let did_hit_max = self.fb.ins().icmp_imm(
             IntCC::UnsignedGreaterThanOrEqual,
             value,
             (TAPE_SIZE - 1) as i64,
         );
 
-        let zero = self.fb.ins().iconst(self.ptr, 0);
-        let wrapped = self.fb.ins().select(did_hit, zero, value);
+        let did_hit_min = self
+            .fb
+            .ins()
+            .icmp_imm(IntCC::UnsignedLessThanOrEqual, value, 0);
 
-        self.fb.def_var(self.tape_ptr, wrapped);
+        let max_wrap = self.fb.ins().iadd_imm(value, -(TAPE_SIZE as i64));
+        let min_wrap = self.fb.ins().iadd_imm(value, TAPE_SIZE as i64);
+
+        let max_clamp = self.fb.ins().select(did_hit_max, max_wrap, value);
+        let min_clamp = self.fb.ins().select(did_hit_min, min_wrap, max_clamp);
+
+        self.fb.def_var(self.tape_ptr, min_clamp);
     }
 
-    pub fn unsafe_move_right(&mut self, amount: i64) {
+    fn unsafe_move_right(&mut self, amount: i64) {
         let base_addr = self.fb.use_var(self.tape_ptr);
         let new_addr = self.fb.ins().iadd_imm(base_addr, amount as i64);
 
         self.fb.def_var(self.tape_ptr, new_addr);
     }
 
-    pub fn move_left(&mut self, amount: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_move_left(amount);
+    fn unsafe_copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
+        let base_addr = self.fb.use_var(self.tape_ptr);
+        let value = self.fb.ins().load(self.byte, MemFlags::new(), base_addr, 0);
+
+        for (offset, mul) in values {
+            let addr = self.fb.ins().iadd_imm(base_addr, *offset);
+            let cur = self.fb.ins().load(self.byte, MemFlags::new(), addr, 0);
+            let additional = self.fb.ins().imul_imm(value, *mul);
+            let result = self.fb.ins().iadd(cur, additional);
+
+            self.fb.ins().store(MemFlags::new(), result, addr, 0);
         }
 
-        let value = self.fb.use_var(self.tape_ptr);
+        let zero = self.fb.ins().iconst(self.byte, 0);
 
-        let did_hit = self
-            .fb
-            .ins()
-            .icmp_imm(IntCC::UnsignedLessThanOrEqual, value, 0);
-
-        let value = self.fb.ins().iadd_imm(value, -(amount as i64));
-        let max = self.fb.ins().iconst(self.ptr, (TAPE_SIZE - 1) as i64);
-        let wrapped = self.fb.ins().select(did_hit, max, value);
-
-        self.fb.def_var(self.tape_ptr, wrapped);
-    }
-
-    pub fn unsafe_move_left(&mut self, amount: i64) {
-        let base_addr = self.fb.use_var(self.tape_ptr);
-        let new_addr = self.fb.ins().iadd_imm(base_addr, -(amount as i64));
-
-        self.fb.def_var(self.tape_ptr, new_addr);
+        self.fb.ins().store(MemFlags::new(), zero, base_addr, 0);
     }
 }

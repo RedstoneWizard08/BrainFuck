@@ -16,7 +16,7 @@ fn should_work_correctly(fixture: Fixture<&str>) {
     let output = fs::read(output).ok();
 
     let program = parse(fixture.content());
-    let program = Optimizer::new(program).run_all().finish();
+    let program = Optimizer::new(program).run_all(1, false).finish();
     let mut outbuf = Vec::new();
     let mut inbuf = Cursor::new(input.unwrap_or_default());
 

@@ -6,3 +6,6 @@ bf.zip
 /bf
 /*.asm
 /*.clif
+/*.ron
+/*.log
+/*.diff

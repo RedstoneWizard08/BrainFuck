@@ -7,7 +7,7 @@ pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]
 
 fn hello_world(c: &mut Criterion) {
     let program = parse(HELLO_WORLD);
-    let program = Optimizer::new(program).run_all().finish();
+    let program = Optimizer::new(program).run_all(1, false).finish();
 
     c.bench_function("interpret: hello world", |b| {
         b.iter(|| {

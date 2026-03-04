@@ -9,6 +9,7 @@ use bf::{
     parse,
 };
 use clap::{Parser, Subcommand};
+use ron::ser::PrettyConfig;
 use target_lexicon::Triple;
 
 #[derive(Parser, Debug)]
@@ -40,6 +41,14 @@ pub enum Commands {
         /// The path to write ASM output to.
         #[arg(long)]
         output_asm: Option<PathBuf>,
+
+        /// The path to write the optimized tokens to.
+        #[arg(long)]
+        output_tokens: Option<PathBuf>,
+
+        /// The number of optimization passes to run.
+        #[arg(short = 'O', long, default_value_t = 1)]
+        opt_level: u8,
     },
 
     /// Run a BrainFuck program using the interpreter.
@@ -48,6 +57,18 @@ pub enum Commands {
     Interpret {
         /// The path to the file to run.
         file: PathBuf,
+
+        /// Enable unsafe optimizations.
+        #[arg(long)]
+        unsafe_mode: bool,
+
+        /// The path to write the optimized tokens to.
+        #[arg(long)]
+        output_tokens: Option<PathBuf>,
+
+        /// The number of optimization passes to run.
+        #[arg(short = 'O', long, default_value_t = 1)]
+        opt_level: u8,
     },
 
     /// Compile a BrainFuck program to an executable binary.
@@ -82,6 +103,14 @@ pub enum Commands {
         /// The path to write ASM output to.
         #[arg(long)]
         output_asm: Option<PathBuf>,
+
+        /// The path to write the optimized tokens to.
+        #[arg(long)]
+        output_tokens: Option<PathBuf>,
+
+        /// The number of optimization passes to run.
+        #[arg(short = 'O', long, default_value_t = 1)]
+        opt_level: u8,
     },
 }
 
@@ -96,9 +125,20 @@ pub fn main() -> Result<()> {
             unsafe_mode,
             output_asm,
             output_clif,
+            output_tokens,
+            opt_level,
         } => {
             let actions = parse(&fs::read_to_string(file)?);
-            let actions = Optimizer::new(actions).run_all().finish();
+            let actions = Optimizer::new(actions)
+                .run_all(opt_level, unsafe_mode)
+                .finish();
+
+            if let Some(path) = output_tokens {
+                fs::write(
+                    path,
+                    ron::ser::to_string_pretty(&actions, PrettyConfig::new())?,
+                )?;
+            }
 
             let func = jit_compile(
                 &actions,
@@ -112,9 +152,24 @@ pub fn main() -> Result<()> {
             func();
         }
 
-        Commands::Interpret { file } => {
+        Commands::Interpret {
+            file,
+            output_tokens,
+            opt_level,
+            unsafe_mode,
+        } => {
             let actions = parse(&fs::read_to_string(file)?);
-            let actions = Optimizer::new(actions).run_all().finish();
+
+            let actions = Optimizer::new(actions)
+                .run_all(opt_level, unsafe_mode)
+                .finish();
+
+            if let Some(path) = output_tokens {
+                fs::write(
+                    path,
+                    ron::ser::to_string_pretty(&actions, PrettyConfig::new())?,
+                )?;
+            }
 
             interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
         }
@@ -127,10 +182,22 @@ pub fn main() -> Result<()> {
             object,
             output_asm,
             output_clif,
+            output_tokens,
+            opt_level,
         } => {
             let output = output.unwrap_or(PathBuf::from("a.out"));
             let actions = parse(&fs::read_to_string(file)?);
-            let actions = Optimizer::new(actions).run_all().finish();
+
+            let actions = Optimizer::new(actions)
+                .run_all(opt_level, unsafe_mode)
+                .finish();
+
+            if let Some(path) = output_tokens {
+                fs::write(
+                    path,
+                    ron::ser::to_string_pretty(&actions, PrettyConfig::new())?,
+                )?;
+            }
 
             let target = target
                 .map(|it| Triple::from_str(&it).ok())

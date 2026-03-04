@@ -1,8 +1,8 @@
 pub mod comp;
+pub mod interp;
 pub mod link;
 pub mod linker;
 pub mod optimizer;
-pub mod interp;
 
 use serde::Serialize;
 
