@@ -1,8 +1,6 @@
-use std::{fs, path::PathBuf, str::FromStr};
-
 use anyhow::Result;
 use bf::{
-    comp::{CompilerOptions, aot_compile, jit_compile},
+    compiler::{Backend, CompilerOptions, Optimization},
     interp::interpret,
     link,
     optimizer::Optimizer,
@@ -10,6 +8,7 @@ use bf::{
 };
 use clap::{Parser, Subcommand};
 use ron::ser::PrettyConfig;
+use std::{fs, path::PathBuf, str::FromStr};
 use target_lexicon::Triple;
 
 #[derive(Parser, Debug)]
@@ -34,9 +33,9 @@ pub enum Commands {
         #[arg(long)]
         unsafe_mode: bool,
 
-        /// The path to write CLIF (Cranelift) IR to.
+        /// The path to write codegen IR to.
         #[arg(long)]
-        output_clif: Option<PathBuf>,
+        output_ir: Option<PathBuf>,
 
         /// The path to write ASM output to.
         #[arg(long)]
@@ -49,6 +48,14 @@ pub enum Commands {
         /// The number of optimization passes to run.
         #[arg(short = 'O', long, default_value_t = 1)]
         opt_level: u8,
+
+        /// The compilation backend to use.
+        #[arg(short = 'B', long, value_enum, default_value_t = Backend::default())]
+        backend: Backend,
+
+        /// Optimizations to be disabled during compilation.
+        #[arg(long, alias = "--no-opt", value_enum)]
+        no_optimize: Vec<Optimization>,
     },
 
     /// Run a BrainFuck program using the interpreter.
@@ -96,9 +103,9 @@ pub enum Commands {
         #[arg(long)]
         unsafe_mode: bool,
 
-        /// The path to write CLIF (Cranelift) IR to.
+        /// The path to write codegen IR to.
         #[arg(long)]
-        output_clif: Option<PathBuf>,
+        output_ir: Option<PathBuf>,
 
         /// The path to write ASM output to.
         #[arg(long)]
@@ -111,6 +118,14 @@ pub enum Commands {
         /// The number of optimization passes to run.
         #[arg(short = 'O', long, default_value_t = 1)]
         opt_level: u8,
+
+        /// The compilation backend to use.
+        #[arg(short = 'B', long, value_enum, default_value_t = Backend::default())]
+        backend: Backend,
+
+        /// Optimizations to be disabled during compilation.
+        #[arg(long, alias = "--no-opt", value_enum)]
+        no_optimize: Vec<Optimization>,
     },
 }
 
@@ -124,14 +139,23 @@ pub fn main() -> Result<()> {
             file,
             unsafe_mode,
             output_asm,
-            output_clif,
+            output_ir,
             output_tokens,
             opt_level,
+            backend,
+            no_optimize,
         } => {
+            let opts = CompilerOptions {
+                unsafe_mode,
+                output_ir,
+                output_asm,
+                opt_level,
+                backend,
+                no_optimize,
+            };
+
             let actions = parse(&fs::read_to_string(file)?);
-            let actions = Optimizer::new(actions)
-                .run_all(opt_level, unsafe_mode)
-                .finish();
+            let actions = Optimizer::new(actions).run_all(&opts).finish();
 
             if let Some(path) = output_tokens {
                 fs::write(
@@ -140,16 +164,22 @@ pub fn main() -> Result<()> {
                 )?;
             }
 
-            let func = jit_compile(
-                &actions,
-                CompilerOptions {
-                    unsafe_mode,
-                    output_clif,
-                    output_asm,
-                },
-            );
+            match backend {
+                Backend::Cranelift => {
+                    let func = bf::compiler::cranelift::jit_compile(&actions, opts);
 
-            func();
+                    func();
+                }
+
+                #[cfg(feature = "llvm")]
+                Backend::LLVM => {
+                    log::warn!(
+                        "The LLVM backend is EXPERIMENTAL! Usage of it is generally discouraged, and some features may not be available!"
+                    );
+
+                    bf::compiler::llvm::jit_compile(&actions, opts)?;
+                }
+            }
         }
 
         Commands::Interpret {
@@ -158,11 +188,15 @@ pub fn main() -> Result<()> {
             opt_level,
             unsafe_mode,
         } => {
-            let actions = parse(&fs::read_to_string(file)?);
+            let opts = CompilerOptions {
+                unsafe_mode,
+                opt_level,
 
-            let actions = Optimizer::new(actions)
-                .run_all(opt_level, unsafe_mode)
-                .finish();
+                ..Default::default()
+            };
+
+            let actions = parse(&fs::read_to_string(file)?);
+            let actions = Optimizer::new(actions).run_all(&opts).finish();
 
             if let Some(path) = output_tokens {
                 fs::write(
@@ -181,16 +215,24 @@ pub fn main() -> Result<()> {
             unsafe_mode,
             object,
             output_asm,
-            output_clif,
+            output_ir,
             output_tokens,
             opt_level,
+            backend,
+            no_optimize,
         } => {
+            let opts = CompilerOptions {
+                unsafe_mode,
+                output_ir,
+                output_asm,
+                opt_level,
+                backend,
+                no_optimize,
+            };
+
             let output = output.unwrap_or(PathBuf::from("a.out"));
             let actions = parse(&fs::read_to_string(file)?);
-
-            let actions = Optimizer::new(actions)
-                .run_all(opt_level, unsafe_mode)
-                .finish();
+            let actions = Optimizer::new(actions).run_all(&opts).finish();
 
             if let Some(path) = output_tokens {
                 fs::write(
@@ -204,15 +246,18 @@ pub fn main() -> Result<()> {
                 .flatten()
                 .unwrap_or(Triple::host());
 
-            let obj = aot_compile(
-                &actions,
-                &target,
-                CompilerOptions {
-                    unsafe_mode,
-                    output_clif,
-                    output_asm,
-                },
-            );
+            let obj = match backend {
+                Backend::Cranelift => bf::compiler::cranelift::aot_compile(&actions, &target, opts),
+
+                #[cfg(feature = "llvm")]
+                Backend::LLVM => {
+                    log::warn!(
+                        "The LLVM backend is EXPERIMENTAL! Usage of it is generally discouraged, and some features may not be available!"
+                    );
+
+                    bf::compiler::llvm::aot_compile(&actions, &target, opts)?
+                }
+            };
 
             if object {
                 fs::write(output, obj)?;

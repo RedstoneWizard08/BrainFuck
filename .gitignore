@@ -10,3 +10,5 @@ bf.zip
 /*.log
 /*.diff
 /*.jar
+/*.bc
+/*.ll

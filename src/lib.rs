@@ -1,4 +1,4 @@
-pub mod comp;
+pub mod compiler;
 pub mod interp;
 pub mod link;
 pub mod linker;

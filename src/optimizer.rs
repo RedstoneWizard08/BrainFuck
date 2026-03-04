@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
-
+use crate::{
+    Action,
+    compiler::{CompilerOptions, Optimization},
+};
 use serde::Serialize;
-
-use crate::Action;
+use std::collections::BTreeMap;
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 pub enum OptAction {
@@ -15,6 +16,7 @@ pub enum OptAction {
     SetAndMove(i64, i64),
     AddAndMove(i64, i64),
     CopyLoop(BTreeMap<i64, i64>),
+    SimdAddMove(Vec<i8>, i64),
     Loop(Vec<OptAction>),
 }
 
@@ -401,19 +403,102 @@ impl Optimizer {
         true
     }
 
-    pub fn run_all(mut self, passes: u8, unsafe_mode: bool) -> Self {
-        for _ in 0..passes {
-            self.chains();
-            self.loops();
-            self.useless_ops();
-            self.dead_code(true);
-            self.set_move();
+    fn simd_add(&mut self) {
+        let mut actions = Vec::new();
 
-            if unsafe_mode {
-                self.copy_loop();
+        std::mem::swap(&mut actions, &mut self.actions);
+
+        let mut buf = Vec::new();
+        let mut pos = 0;
+
+        for insn in actions {
+            if let OptAction::AddAndMove(a, m) = insn {
+                if m < 0 {
+                    if !buf.is_empty() {
+                        self.actions.push(OptAction::SimdAddMove(buf, pos));
+                        buf = Vec::new();
+                        pos = 0;
+                    }
+
+                    self.actions.push(OptAction::AddAndMove(a, m));
+                    continue;
+                }
+
+                let val = a as i8;
+
+                while (buf.len() as i64) <= pos {
+                    buf.push(0);
+                }
+
+                buf[pos as usize] = val;
+                pos += m;
+            } else {
+                if !buf.is_empty() {
+                    self.actions.push(OptAction::SimdAddMove(buf, pos));
+                    buf = Vec::new();
+                    pos = 0;
+                }
+
+                if let OptAction::Loop(it) = insn {
+                    let mut opt = Optimizer { actions: it };
+
+                    opt.simd_add();
+
+                    self.actions.push(OptAction::Loop(opt.finish()));
+                } else {
+                    self.actions.push(insn);
+                }
+            }
+        }
+
+        if !buf.is_empty() {
+            self.actions.push(OptAction::SimdAddMove(buf, pos));
+        }
+    }
+
+    pub fn run_all(mut self, opts: &CompilerOptions) -> Self {
+        for _ in 0..opts.opt_level {
+            if !opts.no_optimize.contains(&Optimization::Chain) {
+                self.chains();
             }
 
-            self.simplify();
+            if !opts.no_optimize.contains(&Optimization::Loop) {
+                self.loops();
+            }
+
+            if !opts.no_optimize.contains(&Optimization::UselessOps) {
+                self.useless_ops();
+            }
+
+            if !opts.no_optimize.contains(&Optimization::DeadCode) {
+                self.dead_code(true);
+            }
+
+            if !opts.no_optimize.contains(&Optimization::SetMove) {
+                self.set_move();
+            }
+
+            if opts.unsafe_mode {
+                if !opts.no_optimize.contains(&Optimization::CopyLoop) {
+                    self.copy_loop();
+                }
+
+                if !opts.no_optimize.contains(&Optimization::Simd) {
+                    #[cfg(feature = "llvm")]
+                    if opts.backend == crate::compiler::Backend::LLVM {
+                        log::warn!("Vectorization is currently not supported on the LLVM backend!");
+                    } else {
+                        self.simd_add();
+                    }
+
+                    #[cfg(not(feature = "llvm"))]
+                    self.simd_add();
+                }
+            }
+
+            if !opts.no_optimize.contains(&Optimization::Simplify) {
+                self.simplify();
+            }
         }
 
         self

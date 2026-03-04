@@ -1,5 +1,5 @@
-use lnk::ShellLink;
 use anyhow::Result;
+use lnk::ShellLink;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},

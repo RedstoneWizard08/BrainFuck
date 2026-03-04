@@ -105,16 +105,20 @@ pub fn eval<W: Write, R: Read>(
 
             state.tape[wrap_to_index(state.tape_ptr)] = 0;
         }
+
+        OptAction::SimdAddMove(_, _) => {
+            panic!("SIMD Add & Move instructions are not supported in the interpreter!")
+        }
     }
 }
 
-fn wrapping_conv(a: i64) -> u8 {
+pub fn wrapping_conv(a: i64) -> u8 {
     let a = if a < 0 { i64::MAX + a } else { a };
 
     u8::try_from(a % i64::from(u8::MAX)).expect(&format!("Failed to convert i64 to u8: {a}"))
 }
 
-fn wrap_to_index(a: i64) -> usize {
+pub fn wrap_to_index(a: i64) -> usize {
     if a > TAPE_SIZE_I {
         TAPE_SIZE - (a % TAPE_SIZE_I) as usize
     } else if a < 0 {
