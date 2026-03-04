@@ -2,6 +2,10 @@
 #[path = "linux.rs"]
 pub mod platform;
 
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
+pub mod platform;
+
 #[cfg(windows)]
 #[path = "win.rs"]
 pub mod platform;

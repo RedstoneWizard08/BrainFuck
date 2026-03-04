@@ -87,7 +87,7 @@ pub enum Commands {
         target: Option<String>,
 
         /// Skip linking and instead output the object file.
-        #[arg(short, long)]
+        #[arg(short = 'c', long)]
         object: bool,
 
         /// Use unsafe pointer arithmetic.
