@@ -2,13 +2,19 @@ pub mod compiler;
 pub mod interp;
 pub mod link;
 pub mod linker;
-pub mod optimizer;
+pub mod opt;
+
+#[cfg(feature = "cli")]
+pub mod cli;
+
+#[cfg(feature = "testing")]
+pub mod testing;
 
 use serde::Serialize;
 
 pub const TAPE_SIZE: usize = u16::MAX as usize;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Action {
     Right,
     Left,
@@ -24,11 +30,7 @@ pub fn parse(input: &str) -> Vec<Action> {
 
     stack.push(Vec::new());
 
-    let mut pos = 0_usize;
-
     for ch in input.chars() {
-        pos += 1;
-
         let cur = stack.last_mut().unwrap();
 
         match ch {
@@ -52,10 +54,7 @@ pub fn parse(input: &str) -> Vec<Action> {
     }
 
     if stack.len() != 1 {
-        panic!(
-            "[at: {pos}] Stack length was {} when it should be 1!",
-            stack.len()
-        );
+        panic!("Stack length was {} when it should be 1!", stack.len());
     }
 
     stack.remove(0)

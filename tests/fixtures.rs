@@ -1,30 +1,50 @@
-use std::{fs, io::Cursor, path::PathBuf};
-
-use bf::{interp::interpret, optimizer::Optimizer, parse};
+use bf::{
+    compiler::{CompilerOptions, cranelift::jit_compile},
+    opt::Optimizer,
+    parse,
+    testing::BufTestingIo,
+};
 use dir_test::{Fixture, dir_test};
+use std::{fs, path::PathBuf};
 
-#[dir_test(
-    dir: "$CARGO_MANIFEST_DIR/tests/fixtures",
-    glob: "*.b",
-)]
-fn should_work_correctly(fixture: Fixture<&str>) {
-    let code = PathBuf::from(fixture.path());
-    let input = code.with_extension("in");
-    let output = code.with_extension("out");
+macro_rules! test_dir {
+    ($name: ident = $dir: expr) => {
+        #[dir_test(
+                    dir: $dir,
+                    glob: "*.b",
+                )]
+        fn $name(fixture: Fixture<&str>) {
+            let opts = CompilerOptions {
+                unsafe_mode: true,
+                ..Default::default()
+            };
 
-    let input = fs::read(input).ok();
-    let output = fs::read(output).ok();
+            let code = PathBuf::from(fixture.path());
+            let input = code.with_extension("in");
+            let output = code.with_extension("out");
 
-    let program = parse(fixture.content());
-    let program = Optimizer::new(program)
-        .run_all(&Default::default())
-        .finish();
-    let mut outbuf = Vec::new();
-    let mut inbuf = Cursor::new(input.unwrap_or_default());
+            let input = fs::read(input).ok();
+            let output = fs::read(output).ok();
 
-    interpret(&program, &mut outbuf, &mut inbuf);
+            let program = parse(fixture.content());
 
-    if let Some(output) = output {
-        assert_eq!(outbuf, output, "Outputs did not match!");
-    }
+            let program = Optimizer::new(&opts, program).run_all().finish();
+
+            let io = BufTestingIo::new();
+
+            if let Some(input) = input {
+                io.load_stdin(input);
+            }
+
+            jit_compile(&program, opts, Some(Box::new(&io)));
+
+            let outbuf = io.finish();
+
+            if let Some(output) = output {
+                assert_eq!(outbuf, output, "Outputs did not match!");
+            }
+        }
+    };
 }
+
+test_dir!(basic = "$CARGO_MANIFEST_DIR/tests/fixtures/basic");

@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use crate::{TAPE_SIZE, optimizer::OptAction};
+use crate::{TAPE_SIZE, opt::OptAction};
 
 pub struct ProgramState {
     tape: [u8; TAPE_SIZE],
@@ -49,6 +49,12 @@ pub fn eval<W: Write, R: Read>(
     match insn {
         OptAction::Output => {
             output.write(&[state.get()]).unwrap();
+        }
+
+        OptAction::BulkPrint(n) => {
+            for _ in 0..*n {
+                output.write(&[state.get()]).unwrap();
+            }
         }
 
         OptAction::Input => {

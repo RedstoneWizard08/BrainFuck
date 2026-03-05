@@ -1,0 +1,5 @@
+- `cells100k`: Our tape is 65535 cells long
+- `cristofd-rightmargin`: In unsafe mode there is no bounds checking
+- `fibint`: Needs an 8-bit interpreter
+- `OptimTease`: No.
+- `cristofd-close` | `cristofd-open`: Our error messages are still a WIP.

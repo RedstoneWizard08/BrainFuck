@@ -1,6 +1,11 @@
 mod simd;
 
-use crate::{TAPE_SIZE, compiler::CompilerOptions, optimizer::OptAction};
+use crate::{
+    TAPE_SIZE,
+    compiler::{CompilerOptions, TestingIo},
+    interp::wrapping_conv,
+    opt::OptAction,
+};
 use cranelift::{
     codegen::{
         Context,
@@ -21,7 +26,11 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::{collections::BTreeMap, fs, mem};
 use target_lexicon::Triple;
 
-pub fn jit_compile(actions: &Vec<OptAction>, opts: CompilerOptions) -> fn() -> () {
+pub fn jit_compile(
+    actions: &Vec<OptAction>,
+    opts: CompilerOptions,
+    _testing_io: Option<Box<&dyn TestingIo>>,
+) {
     let mut flags = settings::builder();
 
     flags.set("use_colocated_libcalls", "false").unwrap();
@@ -29,7 +38,16 @@ pub fn jit_compile(actions: &Vec<OptAction>, opts: CompilerOptions) -> fn() -> (
 
     let isa = cranelift_native::builder().unwrap();
     let isa = isa.finish(Flags::new(flags)).unwrap();
-    let builder = JITBuilder::with_isa(isa, default_libcall_names());
+
+    #[allow(unused_mut)]
+    let mut builder = JITBuilder::with_isa(isa, default_libcall_names());
+
+    #[cfg(feature = "testing")]
+    if let Some(io) = _testing_io {
+        builder.symbol("putchar", io.putchar());
+        builder.symbol("getchar", io.getchar());
+    }
+
     let module = JITModule::new(builder);
     let mut compiler = Compiler::new(module, false, opts);
     let id = compiler.compile(actions);
@@ -37,9 +55,9 @@ pub fn jit_compile(actions: &Vec<OptAction>, opts: CompilerOptions) -> fn() -> (
     compiler.module.finalize_definitions().unwrap();
 
     let code = compiler.module.get_finalized_function(id);
-    let func = unsafe { mem::transmute(code) };
+    let func: fn() -> () = unsafe { mem::transmute(code) };
 
-    func
+    func();
 }
 
 pub fn aot_compile(actions: &Vec<OptAction>, target: &Triple, opts: CompilerOptions) -> Vec<u8> {
@@ -263,6 +281,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
+            OptAction::BulkPrint(n) => self.bulk_print(*n),
 
             OptAction::CopyLoop(v) => {
                 if self.opts.unsafe_mode {
@@ -309,6 +328,15 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.b.ins().call(self.putchar, &[value]);
     }
 
+    fn bulk_print(&mut self, n: i64) {
+        let value = self.read_from_arr();
+        let value = self.b.ins().uextend(types::I32, value);
+
+        for _ in 0..n {
+            self.b.ins().call(self.putchar, &[value]);
+        }
+    }
+
     fn input_slot(&mut self) {
         let call = self.b.ins().call(self.getchar, &[]);
         let value = self.b.inst_results(call)[0];
@@ -343,9 +371,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         let offset = self.b.use_var(self.tape_ptr);
         let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
         let final_addr = self.b.ins().iadd(base_addr, offset);
-
         let value = self.b.ins().load(self.byte, MemFlags::new(), final_addr, 0);
-
         let value = self.b.ins().iadd_imm(value, amount);
 
         self.b.ins().store(MemFlags::new(), value, final_addr, 0);
@@ -375,8 +401,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
 
     fn unsafe_set_slot(&mut self, value: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
-        let value = self.b.ins().iconst(types::I64, value);
-        let value = self.b.ins().ireduce(self.byte, value);
+        let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
 
         self.b.ins().store(MemFlags::new(), value, base_addr, 0);
     }
@@ -400,8 +425,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     fn unsafe_set_move(&mut self, value: i64, offset: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let post = self.b.ins().iadd_imm(base_addr, offset);
-        let value = self.b.ins().iconst(types::I64, value);
-        let value = self.b.ins().ireduce(self.byte, value);
+        let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
 
         self.b.ins().store(MemFlags::new(), value, base_addr, 0);
         self.b.def_var(self.tape_ptr, post);
@@ -453,7 +477,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
 
     fn move_ptr(&mut self, amount: i64) {
         if self.opts.unsafe_mode {
-            return self.unsafe_move_right(amount);
+            return self.unsafe_move_ptr(amount);
         }
 
         let value = self.b.use_var(self.tape_ptr);
@@ -479,9 +503,9 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.b.def_var(self.tape_ptr, min_clamp);
     }
 
-    fn unsafe_move_right(&mut self, amount: i64) {
+    fn unsafe_move_ptr(&mut self, amount: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
-        let new_addr = self.b.ins().iadd_imm(base_addr, amount as i64);
+        let new_addr = self.b.ins().iadd_imm(base_addr, amount);
 
         self.b.def_var(self.tape_ptr, new_addr);
     }

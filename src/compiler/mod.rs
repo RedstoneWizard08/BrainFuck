@@ -7,14 +7,38 @@ use clap::ValueEnum;
 use serde::Serialize;
 use std::path::PathBuf;
 
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "cli", derive(clap::Args))]
 pub struct CompilerOptions {
+    /// Use unsafe pointer arithmetic.
+    ///
+    /// WARNING: While this can lead to faster code, it can also lead to buffer overflows and crashes! Use at your own risk!
+    #[cfg_attr(feature = "cli", arg(long, alias = "--unsafe"))]
     pub unsafe_mode: bool,
+
+    /// The path to write codegen IR to. When using the interpreter, this is ignored.
+    #[cfg_attr(feature = "cli", arg(long))]
     pub output_ir: Option<PathBuf>,
+
+    /// The path to write ASM output to. When using the interpreter, this is ignored.
+    #[cfg_attr(feature = "cli", arg(long))]
     pub output_asm: Option<PathBuf>,
+
+    /// The path to write the optimized tokens to.
+    #[cfg_attr(feature = "cli", arg(long))]
+    pub output_tokens: Option<PathBuf>,
+
+    /// The number of optimization passes to run.
+    #[cfg_attr(feature = "cli", arg(short = 'O', long, default_value_t = 1))]
     pub opt_level: u8,
-    pub no_optimize: Vec<Optimization>,
+
+    /// The compilation backend to use. When using the interpreter, this is ignored.
+    #[cfg_attr(feature = "cli", arg(short = 'B', long, value_enum, default_value_t = Backend::default()))]
     pub backend: Backend,
+
+    /// Optimizations to be disabled during compilation.
+    #[cfg_attr(feature = "cli", arg(long, alias = "--no-opt", value_enum))]
+    pub no_optimize: Vec<Optimization>,
 }
 
 #[derive(
@@ -59,4 +83,13 @@ pub enum Optimization {
     ///
     /// **Note:** Requires unsafe mode.
     Simd,
+}
+
+/// A trait for implementing I/O for testing with the JIT compiler.
+pub trait TestingIo {
+    /// Get a pointer to the getchar() function.
+    fn getchar(&self) -> *const u8;
+
+    /// Get a pointer to the putchar() function.
+    fn putchar(&self) -> *const u8;
 }

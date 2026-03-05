@@ -1,4 +1,4 @@
-use crate::{TAPE_SIZE, compiler::CompilerOptions, optimizer::OptAction};
+use crate::{TAPE_SIZE, compiler::CompilerOptions, opt::OptAction};
 use anyhow::Result;
 use inkwell::{
     AddressSpace, IntPredicate, OptimizationLevel,
@@ -652,7 +652,7 @@ impl<'c> CodeGenerator<'c> {
 
     fn move_ptr(&mut self, amount: i64) -> Result<(), BuilderError> {
         if self.opts.unsafe_mode {
-            return self.unsafe_move_right(amount);
+            return self.unsafe_move_ptr(amount);
         }
 
         todo!("Safe output is currently not supported on the LLVM backend!");
@@ -682,7 +682,7 @@ impl<'c> CodeGenerator<'c> {
         // Ok(())
     }
 
-    fn unsafe_move_right(&mut self, amount: i64) -> Result<(), BuilderError> {
+    fn unsafe_move_ptr(&mut self, amount: i64) -> Result<(), BuilderError> {
         let val = self.ptr.const_int(amount as u64, true);
 
         let ptr = self.get_tape_ptr("get_ptr__move_right")?;
