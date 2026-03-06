@@ -1,10 +1,4 @@
-use crate::{
-    compiler::{Backend, CompilerOptions},
-    interp::interpret,
-    link,
-    opt::Optimizer,
-    parse,
-};
+use crate::{compiler::CompilerOptions, interp::interpret, link, opt::Optimizer, parse};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{fs, path::PathBuf, str::FromStr};
@@ -75,20 +69,7 @@ impl Commands {
                     .run_all()
                     .finish_with_write()?;
 
-                match opts.backend {
-                    Backend::Cranelift => {
-                        crate::compiler::cranelift::jit_compile(&actions, opts, None)
-                    }
-
-                    #[cfg(feature = "llvm")]
-                    Backend::LLVM => {
-                        log::warn!(
-                            "The LLVM backend is EXPERIMENTAL! Usage of it is generally discouraged, and some features may not be available!"
-                        );
-
-                        crate::compiler::llvm::jit_compile(&actions, opts)?;
-                    }
-                }
+                crate::compiler::cranelift::jit_compile_run(&actions, opts, None)
             }
 
             Self::Interpret { file, opts } => {
@@ -120,20 +101,7 @@ impl Commands {
                     .flatten()
                     .unwrap_or(Triple::host());
 
-                let obj = match opts.backend {
-                    Backend::Cranelift => {
-                        crate::compiler::cranelift::aot_compile(&actions, &target, opts)
-                    }
-
-                    #[cfg(feature = "llvm")]
-                    Backend::LLVM => {
-                        log::warn!(
-                            "The LLVM backend is EXPERIMENTAL! Usage of it is generally discouraged, and some features may not be available!"
-                        );
-
-                        crate::compiler::llvm::aot_compile(&actions, &target, opts)?
-                    }
-                };
+                let obj = crate::compiler::cranelift::aot_compile(&actions, &target, opts);
 
                 if object {
                     fs::write(output, obj)?;

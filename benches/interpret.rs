@@ -12,11 +12,11 @@ fn hello_world(c: &mut Criterion) {
         .run_all()
         .finish();
 
+    let mut dummy = Vec::new();
+    let mut dummy2 = Cursor::new(Vec::new());
+
     c.bench_function("interpret: hello world", |b| {
         b.iter(|| {
-            let mut dummy = Vec::new();
-            let mut dummy2 = Cursor::new(Vec::new());
-
             interpret(&program, &mut dummy, &mut dummy2);
         });
     });

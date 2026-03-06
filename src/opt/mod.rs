@@ -150,17 +150,6 @@ impl<'a> Optimizer<'a> {
             Optimization::SetMove => self.set_move(),
             Optimization::Simplify => self.simplify(),
             Optimization::CopyLoop => self.copy_loop(),
-
-            #[cfg(feature = "llvm")]
-            Optimization::Simd => {
-                if opts.backend == crate::compiler::Backend::LLVM {
-                    log::warn!("Vectorization is currently not supported on the LLVM backend!");
-                } else {
-                    self.simd_add();
-                }
-            }
-
-            #[cfg(not(feature = "llvm"))]
             Optimization::Simd => self.simd_add(),
         }
     }
@@ -172,12 +161,8 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::UselessOps);
             self.run(Optimization::DeadCode);
             self.run(Optimization::SetMove);
-
-            if self.opts.unsafe_mode {
-                self.run(Optimization::CopyLoop);
-                self.run(Optimization::Simd);
-            }
-
+            self.run(Optimization::CopyLoop);
+            self.run(Optimization::Simd);
             self.run(Optimization::Simplify);
         }
 

@@ -9,9 +9,6 @@ default = ["cli", "testing"]
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]
 
-# Enable the experimental LLVM backend (usage of this is discoraged).
-llvm = ["dep:inkwell"]
-
 # Tools for testing.
 testing = []
 
@@ -29,7 +26,6 @@ cranelift-jit = "0.129.1"
 cranelift-module = "0.129.1"
 cranelift-native = "0.129.1"
 cranelift-object = "0.129.1"
-inkwell = { version = "0.8.0", features = ["llvm21-1"], optional = true }
 log = "0.4.29"
 pretty_env_logger = { version = "0.5.0", optional = true }
 ron = "0.12.0"
@@ -45,6 +41,7 @@ lnk = "0.6.3"
 [dev-dependencies]
 criterion = "0.8.2"
 dir-test = "0.4.1"
+paste = "1.0.15"
 
 [[bench]]
 name = "interpret"
@@ -59,4 +56,9 @@ harness = false
 [[bench]]
 name = "optim"
 path = "benches/optim.rs"
+harness = false
+
+[[bench]]
+name = "jit"
+path = "benches/jit.rs"
 harness = false

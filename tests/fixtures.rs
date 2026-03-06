@@ -1,5 +1,5 @@
 use bf::{
-    compiler::{CompilerOptions, cranelift::jit_compile},
+    compiler::{CompilerOptions, cranelift::jit_compile_run},
     opt::Optimizer,
     parse,
     testing::BufTestingIo,
@@ -10,14 +10,11 @@ use std::{fs, path::PathBuf};
 macro_rules! test_dir {
     ($name: ident = $dir: expr) => {
         #[dir_test(
-                    dir: $dir,
-                    glob: "*.b",
-                )]
+            dir: $dir,
+            glob: "*.b",
+        )]
         fn $name(fixture: Fixture<&str>) {
-            let opts = CompilerOptions {
-                unsafe_mode: true,
-                ..Default::default()
-            };
+            let opts = CompilerOptions::default();
 
             let code = PathBuf::from(fixture.path());
             let input = code.with_extension("in");
@@ -36,7 +33,7 @@ macro_rules! test_dir {
                 io.load_stdin(input);
             }
 
-            jit_compile(&program, opts, Some(Box::new(&io)));
+            jit_compile_run(&program, opts, Some(Box::new(&io)));
 
             let outbuf = io.finish();
 

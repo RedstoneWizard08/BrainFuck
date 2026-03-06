@@ -1,8 +1,5 @@
 pub mod cranelift;
 
-#[cfg(feature = "llvm")]
-pub mod llvm;
-
 use clap::ValueEnum;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -10,12 +7,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "cli", derive(clap::Args))]
 pub struct CompilerOptions {
-    /// Use unsafe pointer arithmetic.
-    ///
-    /// WARNING: While this can lead to faster code, it can also lead to buffer overflows and crashes! Use at your own risk!
-    #[cfg_attr(feature = "cli", arg(long, alias = "--unsafe"))]
-    pub unsafe_mode: bool,
-
     /// The path to write codegen IR to. When using the interpreter, this is ignored.
     #[cfg_attr(feature = "cli", arg(long))]
     pub output_ir: Option<PathBuf>,
@@ -32,24 +23,9 @@ pub struct CompilerOptions {
     #[cfg_attr(feature = "cli", arg(short = 'O', long, default_value_t = 1))]
     pub opt_level: u8,
 
-    /// The compilation backend to use. When using the interpreter, this is ignored.
-    #[cfg_attr(feature = "cli", arg(short = 'B', long, value_enum, default_value_t = Backend::default()))]
-    pub backend: Backend,
-
     /// Optimizations to be disabled during compilation.
     #[cfg_attr(feature = "cli", arg(long, alias = "--no-opt", value_enum))]
     pub no_optimize: Vec<Optimization>,
-}
-
-#[derive(
-    Debug, Clone, Copy, ValueEnum, Serialize, Default, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
-pub enum Backend {
-    #[default]
-    Cranelift,
-
-    #[cfg(feature = "llvm")]
-    LLVM,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash)]

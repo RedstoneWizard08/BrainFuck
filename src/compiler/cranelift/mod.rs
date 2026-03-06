@@ -26,11 +26,19 @@ use cranelift_object::{ObjectBuilder, ObjectModule};
 use std::{collections::BTreeMap, fs, mem};
 use target_lexicon::Triple;
 
-pub fn jit_compile(
+pub fn jit_compile_run(
     actions: &Vec<OptAction>,
     opts: CompilerOptions,
     _testing_io: Option<Box<&dyn TestingIo>>,
 ) {
+    jit_compile(actions, opts, _testing_io)();
+}
+
+pub fn jit_compile(
+    actions: &Vec<OptAction>,
+    opts: CompilerOptions,
+    _testing_io: Option<Box<&dyn TestingIo>>,
+) -> fn() -> () {
     let mut flags = settings::builder();
 
     flags.set("use_colocated_libcalls", "false").unwrap();
@@ -57,7 +65,7 @@ pub fn jit_compile(
     let code = compiler.module.get_finalized_function(id);
     let func: fn() -> () = unsafe { mem::transmute(code) };
 
-    func();
+    func
 }
 
 pub fn aot_compile(actions: &Vec<OptAction>, target: &Triple, opts: CompilerOptions) -> Vec<u8> {
@@ -198,18 +206,9 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
 
         fb.call_memset(module.target_config(), tape_addr, zero, size);
 
-        let tape_ptr = if opts.unsafe_mode {
-            let tape_ptr = fb.declare_var(ptr);
+        let tape_ptr = fb.declare_var(ptr);
 
-            fb.def_var(tape_ptr, tape_addr);
-            tape_ptr
-        } else {
-            let zero = fb.ins().iconst(ptr, 0);
-            let tape_ptr = fb.declare_var(ptr);
-
-            fb.def_var(tape_ptr, zero);
-            tape_ptr
-        };
+        fb.def_var(tape_ptr, tape_addr);
 
         let mut sig = module.make_signature();
 
@@ -282,14 +281,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
             OptAction::BulkPrint(n) => self.bulk_print(*n),
-
-            OptAction::CopyLoop(v) => {
-                if self.opts.unsafe_mode {
-                    self.unsafe_copy_loop(&v)
-                } else {
-                    panic!("The CopyLoop optimization is only supported in unsafe mode!")
-                }
-            }
+            OptAction::CopyLoop(v) => self.copy_loop(&v),
         }
     }
 
@@ -346,38 +338,12 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     }
 
     fn write_to_arr(&mut self, value: Value) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_write_to_arr(value);
-        }
-
-        let offset = self.b.use_var(self.tape_ptr);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset);
-
-        self.b.ins().store(MemFlags::new(), value, final_addr, 0);
-    }
-
-    fn unsafe_write_to_arr(&mut self, value: Value) {
         let base_addr = self.b.use_var(self.tape_ptr);
 
         self.b.ins().store(MemFlags::new(), value, base_addr, 0);
     }
 
     fn add_slot(&mut self, amount: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_add_slot(amount);
-        }
-
-        let offset = self.b.use_var(self.tape_ptr);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset);
-        let value = self.b.ins().load(self.byte, MemFlags::new(), final_addr, 0);
-        let value = self.b.ins().iadd_imm(value, amount);
-
-        self.b.ins().store(MemFlags::new(), value, final_addr, 0);
-    }
-
-    fn unsafe_add_slot(&mut self, amount: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
         let value = self.b.ins().iadd_imm(value, amount);
@@ -386,20 +352,6 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     }
 
     fn set_slot(&mut self, value: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_set_slot(value);
-        }
-
-        let offset = self.b.use_var(self.tape_ptr);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset);
-        let value = self.b.ins().iconst(types::I64, value);
-        let value = self.b.ins().ireduce(self.byte, value);
-
-        self.b.ins().store(MemFlags::new(), value, final_addr, 0);
-    }
-
-    fn unsafe_set_slot(&mut self, value: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
 
@@ -407,22 +359,6 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     }
 
     fn set_move(&mut self, value: i64, offset: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_set_move(value, offset);
-        }
-
-        let offset_v = self.b.use_var(self.tape_ptr);
-        let post = self.b.ins().iadd_imm(offset_v, offset);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset_v);
-        let value = self.b.ins().iconst(types::I64, value);
-        let value = self.b.ins().ireduce(self.byte, value);
-
-        self.b.ins().store(MemFlags::new(), value, final_addr, 0);
-        self.b.def_var(self.tape_ptr, post);
-    }
-
-    fn unsafe_set_move(&mut self, value: i64, offset: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let post = self.b.ins().iadd_imm(base_addr, offset);
         let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
@@ -432,22 +368,6 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     }
 
     fn add_move(&mut self, amount: i64, offset: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_add_move(amount, offset);
-        }
-
-        let offset_v = self.b.use_var(self.tape_ptr);
-        let post = self.b.ins().iadd_imm(offset_v, offset);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset_v);
-        let value = self.b.ins().load(self.byte, MemFlags::new(), final_addr, 0);
-        let value = self.b.ins().iadd_imm(value, amount);
-
-        self.b.ins().store(MemFlags::new(), value, final_addr, 0);
-        self.b.def_var(self.tape_ptr, post);
-    }
-
-    fn unsafe_add_move(&mut self, amount: i64, offset: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let post = self.b.ins().iadd_imm(base_addr, offset);
         let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
@@ -458,59 +378,19 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     }
 
     fn read_from_arr(&mut self) -> Value {
-        if self.opts.unsafe_mode {
-            return self.unsafe_read_from_arr();
-        }
-
-        let offset = self.b.use_var(self.tape_ptr);
-        let base_addr = self.b.ins().stack_addr(self.ptr, self.tape, 0);
-        let final_addr = self.b.ins().iadd(base_addr, offset);
-
-        self.b.ins().load(self.byte, MemFlags::new(), final_addr, 0)
-    }
-
-    fn unsafe_read_from_arr(&mut self) -> Value {
         let base_addr = self.b.use_var(self.tape_ptr);
 
         self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0)
     }
 
     fn move_ptr(&mut self, amount: i64) {
-        if self.opts.unsafe_mode {
-            return self.unsafe_move_ptr(amount);
-        }
-
-        let value = self.b.use_var(self.tape_ptr);
-        let value = self.b.ins().iadd_imm(value, amount as i64);
-
-        let did_hit_max = self.b.ins().icmp_imm(
-            IntCC::UnsignedGreaterThanOrEqual,
-            value,
-            (TAPE_SIZE - 1) as i64,
-        );
-
-        let did_hit_min = self
-            .b
-            .ins()
-            .icmp_imm(IntCC::UnsignedLessThanOrEqual, value, 0);
-
-        let max_wrap = self.b.ins().iadd_imm(value, -(TAPE_SIZE as i64));
-        let min_wrap = self.b.ins().iadd_imm(value, TAPE_SIZE as i64);
-
-        let max_clamp = self.b.ins().select(did_hit_max, max_wrap, value);
-        let min_clamp = self.b.ins().select(did_hit_min, min_wrap, max_clamp);
-
-        self.b.def_var(self.tape_ptr, min_clamp);
-    }
-
-    fn unsafe_move_ptr(&mut self, amount: i64) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let new_addr = self.b.ins().iadd_imm(base_addr, amount);
 
         self.b.def_var(self.tape_ptr, new_addr);
     }
 
-    fn unsafe_copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
+    fn copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
 
