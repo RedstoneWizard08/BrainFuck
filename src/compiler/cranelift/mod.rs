@@ -1,10 +1,15 @@
+mod copy;
+mod io;
+mod loops;
+mod ptr;
 mod simd;
+mod util;
+mod value;
 
 use crate::{
     TAPE_SIZE,
     compiler::{CompilerOptions, CustomIo},
-    interp::wrapping_conv,
-    opt::OptAction,
+    opt::{OptAction, ValueAction},
 };
 use cranelift::{
     codegen::{
@@ -13,8 +18,8 @@ use cranelift::{
         write_function,
     },
     prelude::{
-        AbiParam, Configurable, FunctionBuilder, FunctionBuilderContext, InstBuilder, IntCC,
-        MemFlags, StackSlotData, StackSlotKind, Type, Value, Variable,
+        AbiParam, Configurable, FunctionBuilder, FunctionBuilderContext, InstBuilder,
+        StackSlotData, StackSlotKind, Type, Variable,
         settings::{self, Flags},
         types,
     },
@@ -23,7 +28,7 @@ use cranelift_codegen::control::ControlPlane;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{FuncId, Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use std::{collections::BTreeMap, fs, mem};
+use std::{fs, mem};
 use target_lexicon::Triple;
 
 pub fn jit_compile_run(
@@ -271,140 +276,29 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
     fn translate(&mut self, insn: &OptAction) {
         match insn {
             OptAction::Noop => (),
-            OptAction::Output => self.print_slot(),
-            OptAction::Input => self.input_slot(),
+
+            OptAction::Value(it) => match it {
+                ValueAction::Output => self.print_slot(),
+                ValueAction::Input => self.input_slot(),
+                ValueAction::AddValue(v) => self.add_slot(*v as i64),
+                ValueAction::SetValue(v) => self.set_slot(*v as i64),
+                ValueAction::BulkPrint(n) => self.bulk_print(*n),
+            },
+
+            OptAction::OffsetValue(it, offset) => match it {
+                ValueAction::Output => self.print_slot_offset(*offset),
+                ValueAction::Input => self.input_slot_offset(*offset),
+                ValueAction::AddValue(v) => self.add_slot_offset(*v as i64, *offset),
+                ValueAction::SetValue(v) => self.set_slot_offset(*v as i64, *offset),
+                ValueAction::BulkPrint(n) => self.bulk_print_offset(*n, *offset),
+            },
+
             OptAction::Loop(actions) => self.translate_loop(actions),
-            OptAction::AddValue(v) => self.add_slot(*v as i64),
-            OptAction::SetValue(v) => self.set_slot(*v as i64),
             OptAction::MovePtr(v) => self.move_ptr(*v),
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
-            OptAction::BulkPrint(n) => self.bulk_print(*n),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
         }
-    }
-
-    fn translate_loop(&mut self, actions: &Vec<OptAction>) {
-        let header = self.b.create_block();
-        let body = self.b.create_block();
-        let exit = self.b.create_block();
-
-        self.b.ins().jump(header, &[]);
-        self.b.switch_to_block(header);
-
-        let value = self.read_from_arr();
-        let cond = self.b.ins().icmp_imm(IntCC::NotEqual, value, 0);
-
-        self.b.ins().brif(cond, body, &[], exit, &[]);
-
-        self.b.switch_to_block(body);
-        self.b.seal_block(body);
-
-        for action in actions {
-            self.translate(action);
-        }
-
-        self.b.ins().jump(header, &[]);
-        self.b.switch_to_block(exit);
-        self.b.seal_block(header);
-        self.b.seal_block(exit);
-    }
-
-    // "Unsafe" methods use the tape_ptr as a literal pointer instead of an index into the tape array
-
-    fn print_slot(&mut self) {
-        let value = self.read_from_arr();
-        let value = self.b.ins().uextend(types::I32, value);
-
-        self.b.ins().call(self.putchar, &[value]);
-    }
-
-    fn bulk_print(&mut self, n: i64) {
-        let value = self.read_from_arr();
-        let value = self.b.ins().uextend(types::I32, value);
-
-        for _ in 0..n {
-            self.b.ins().call(self.putchar, &[value]);
-        }
-    }
-
-    fn input_slot(&mut self) {
-        let call = self.b.ins().call(self.getchar, &[]);
-        let value = self.b.inst_results(call)[0];
-        let value = self.b.ins().ireduce(self.byte, value);
-
-        self.write_to_arr(value);
-    }
-
-    fn write_to_arr(&mut self, value: Value) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-
-        self.b.ins().store(MemFlags::new(), value, base_addr, 0);
-    }
-
-    fn add_slot(&mut self, amount: i64) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
-        let value = self.b.ins().iadd_imm(value, amount);
-
-        self.b.ins().store(MemFlags::new(), value, base_addr, 0);
-    }
-
-    fn set_slot(&mut self, value: i64) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
-
-        self.b.ins().store(MemFlags::new(), value, base_addr, 0);
-    }
-
-    fn set_move(&mut self, value: i64, offset: i64) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let post = self.b.ins().iadd_imm(base_addr, offset);
-        let value = self.b.ins().iconst(self.byte, wrapping_conv(value) as i64);
-
-        self.b.ins().store(MemFlags::new(), value, base_addr, 0);
-        self.b.def_var(self.tape_ptr, post);
-    }
-
-    fn add_move(&mut self, amount: i64, offset: i64) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let post = self.b.ins().iadd_imm(base_addr, offset);
-        let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
-        let value = self.b.ins().iadd_imm(value, amount);
-
-        self.b.ins().store(MemFlags::new(), value, base_addr, 0);
-        self.b.def_var(self.tape_ptr, post);
-    }
-
-    fn read_from_arr(&mut self) -> Value {
-        let base_addr = self.b.use_var(self.tape_ptr);
-
-        self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0)
-    }
-
-    fn move_ptr(&mut self, amount: i64) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let new_addr = self.b.ins().iadd_imm(base_addr, amount);
-
-        self.b.def_var(self.tape_ptr, new_addr);
-    }
-
-    fn copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
-        let base_addr = self.b.use_var(self.tape_ptr);
-        let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
-
-        for (offset, mul) in values {
-            let addr = self.b.ins().iadd_imm(base_addr, *offset);
-            let cur = self.b.ins().load(self.byte, MemFlags::new(), addr, 0);
-            let additional = self.b.ins().imul_imm(value, *mul);
-            let result = self.b.ins().iadd(cur, additional);
-
-            self.b.ins().store(MemFlags::new(), result, addr, 0);
-        }
-
-        let zero = self.b.ins().iconst(self.byte, 0);
-
-        self.b.ins().store(MemFlags::new(), zero, base_addr, 0);
     }
 }

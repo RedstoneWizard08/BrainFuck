@@ -2,6 +2,7 @@ mod chain;
 mod copy_loop;
 mod dead_code;
 mod loops;
+mod offsets;
 mod set_move;
 mod simd;
 mod simplify;
@@ -17,20 +18,26 @@ use ron::{Options, Serializer, ser::PrettyConfig};
 use serde::Serialize;
 use std::{collections::BTreeMap, fs};
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
-pub enum OptAction {
-    Noop,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum ValueAction {
     Output,
     Input,
     AddValue(i64),
     SetValue(i64),
+    BulkPrint(i64),
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub enum OptAction {
+    Noop,
+    Value(ValueAction),
+    OffsetValue(ValueAction, i64),
     MovePtr(i64),
     SetAndMove(i64, i64),
     AddAndMove(i64, i64),
     CopyLoop(BTreeMap<i64, i64>),
     SimdAddMove(Vec<i8>, i64),
     Loop(Vec<OptAction>),
-    BulkPrint(i64),
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -44,9 +51,9 @@ impl ChainType {
     #[inline(always)]
     pub fn action(&self) -> OptAction {
         match self {
-            Self::Add(value) => OptAction::AddValue(*value),
+            Self::Add(value) => OptAction::Value(ValueAction::AddValue(*value)),
             Self::Move(value) => OptAction::MovePtr(*value),
-            Self::Print(value) => OptAction::BulkPrint(*value),
+            Self::Print(value) => OptAction::Value(ValueAction::BulkPrint(*value)),
         }
     }
 
@@ -87,9 +94,9 @@ impl OptAction {
     #[inline(always)]
     pub fn as_chain(&self) -> Option<ChainType> {
         match self {
-            Self::AddValue(v) => Some(ChainType::Add(*v)),
+            Self::Value(ValueAction::AddValue(v)) => Some(ChainType::Add(*v)),
             Self::MovePtr(v) => Some(ChainType::Move(*v)),
-            Self::Output => Some(ChainType::Print(1)),
+            Self::Value(ValueAction::Output) => Some(ChainType::Print(1)),
             _ => None,
         }
     }
@@ -97,7 +104,7 @@ impl OptAction {
     #[inline(always)]
     pub fn is_math(&self) -> bool {
         match self {
-            Self::AddValue(_) => true,
+            Self::Value(ValueAction::AddValue(_)) => true,
             _ => false,
         }
     }
@@ -109,10 +116,10 @@ pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
         .map(|it| match it {
             Action::Right => OptAction::MovePtr(1),
             Action::Left => OptAction::MovePtr(-1),
-            Action::Inc => OptAction::AddValue(1),
-            Action::Dec => OptAction::AddValue(-1),
-            Action::Output => OptAction::Output,
-            Action::Input => OptAction::Input,
+            Action::Inc => OptAction::Value(ValueAction::AddValue(1)),
+            Action::Dec => OptAction::Value(ValueAction::AddValue(-1)),
+            Action::Output => OptAction::Value(ValueAction::Output),
+            Action::Input => OptAction::Value(ValueAction::Input),
             Action::Loop(actions) => OptAction::Loop(convert(actions)),
         })
         .collect()
@@ -167,6 +174,10 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::Simd);
             self.run(Optimization::Simplify);
             self.run(Optimization::UselessEnd);
+
+            if self.opts.opt_level > 0 {
+                self.offsets();
+            }
         }
 
         self

@@ -1,4 +1,4 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 use std::collections::BTreeMap;
 
 impl<'a> Optimizer<'a> {
@@ -22,7 +22,7 @@ impl<'a> Optimizer<'a> {
                     pos += *o;
                 }
 
-                OptAction::AddValue(v) => {
+                OptAction::Value(ValueAction::AddValue(v)) => {
                     *changes.entry(pos).or_insert(0) += *v;
                 }
 

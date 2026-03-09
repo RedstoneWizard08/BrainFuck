@@ -1,4 +1,4 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn set_move(&mut self) {
@@ -11,10 +11,10 @@ impl<'a> Optimizer<'a> {
         for action in actions {
             if let OptAction::MovePtr(o) = action {
                 if let Some(a) = prev {
-                    if let OptAction::SetValue(v) = a {
+                    if let OptAction::Value(ValueAction::SetValue(v)) = a {
                         self.actions.push(OptAction::SetAndMove(v, o));
                         prev = None;
-                    } else if let OptAction::AddValue(v) = a {
+                    } else if let OptAction::Value(ValueAction::AddValue(v)) = a {
                         self.actions.push(OptAction::AddAndMove(v, o));
                         prev = None;
                     } else if let OptAction::Loop(it) = a {

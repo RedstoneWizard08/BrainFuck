@@ -1,4 +1,9 @@
-use crate::{compiler::CompilerOptions, interp::interpret, opt::Optimizer, parse};
+use crate::{
+    compiler::{CompilerOptions, Optimization},
+    interp::interpret,
+    opt::Optimizer,
+    parse,
+};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::{fs, path::PathBuf};
@@ -108,7 +113,9 @@ impl Commands {
                 )?;
             }
 
-            Self::Interpret { file, opts } => {
+            Self::Interpret { file, mut opts } => {
+                opts.no_optimize.push(Optimization::Simd);
+
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)

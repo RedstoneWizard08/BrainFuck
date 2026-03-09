@@ -1,11 +1,17 @@
+mod copy;
+mod io;
+mod loops;
+mod ptr;
 mod simd;
+mod value;
 
-use crate::{compiler::CompilerOptions, opt::OptAction};
-use std::collections::BTreeMap;
+use crate::{
+    compiler::CompilerOptions,
+    opt::{OptAction, ValueAction},
+};
 use wasm_encoder::{
-    BlockType, CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection,
-    ImportSection, InstructionSink, MemArg, MemorySection, MemoryType, Module, TypeSection,
-    ValType,
+    CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
+    InstructionSink, MemorySection, MemoryType, Module, TypeSection, ValType,
 };
 
 const PAGE_SIZE: i32 = 65536;
@@ -118,167 +124,29 @@ impl<'a> CodeGenerator<'a> {
     fn translate<'i>(&mut self, b: &mut InstructionSink<'i>, insn: &OptAction) {
         match insn {
             OptAction::Noop => (),
-            OptAction::Output => self.print_slot(b),
-            OptAction::Input => self.input_slot(b),
+
+            OptAction::Value(it) => match it {
+                ValueAction::Output => self.print_slot(b),
+                ValueAction::Input => self.input_slot(b),
+                ValueAction::AddValue(v) => self.add_slot(b, *v as i64),
+                ValueAction::SetValue(v) => self.set_slot(b, *v as i64),
+                ValueAction::BulkPrint(n) => self.bulk_print(b, *n),
+            },
+
+            OptAction::OffsetValue(it, offset) => match it {
+                ValueAction::Output => self.print_slot_offset(b, *offset),
+                ValueAction::Input => self.input_slot_offset(b, *offset),
+                ValueAction::AddValue(v) => self.add_slot_offset(b, *v as i64, *offset),
+                ValueAction::SetValue(v) => self.set_slot_offset(b, *v as i64, *offset),
+                ValueAction::BulkPrint(n) => self.bulk_print_offset(b, *n, *offset),
+            },
+
             OptAction::Loop(actions) => self.translate_loop(b, actions),
-            OptAction::AddValue(v) => self.add_slot(b, *v as i64),
-            OptAction::SetValue(v) => self.set_slot(b, *v as i64),
             OptAction::MovePtr(v) => self.move_ptr(b, *v),
             OptAction::SetAndMove(v, o) => self.set_move(b, *v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(b, *v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(b, a, *o),
-            OptAction::BulkPrint(n) => self.bulk_print(b, *n),
             OptAction::CopyLoop(v) => self.copy_loop(b, &v),
         }
-    }
-
-    fn translate_loop<'i>(&mut self, b: &mut InstructionSink<'i>, actions: &Vec<OptAction>) {
-        b.block(BlockType::Empty);
-        b.loop_(BlockType::Empty);
-
-        self.ptr(b)
-            .i32_load8_u(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            })
-            .i32_eqz()
-            .br_if(1);
-
-        for insn in actions {
-            self.translate(b, insn);
-        }
-
-        b.br(0).end().end();
-    }
-
-    fn print_slot<'i>(&self, b: &mut InstructionSink<'i>) {
-        self.ptr(b)
-            .i32_load8_u(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            })
-            .call(self.putchar);
-    }
-
-    fn bulk_print<'i>(&self, b: &mut InstructionSink<'i>, n: i64) {
-        // WASM doesn't support reusing arguments, to my knowledge
-        for _ in 0..n {
-            self.ptr(b)
-                .i32_load8_u(MemArg {
-                    align: 0,
-                    memory_index: 0,
-                    offset: 0,
-                })
-                .call(self.putchar);
-        }
-    }
-
-    fn input_slot<'i>(&self, b: &mut InstructionSink<'i>) {
-        self.ptr(b).call(self.getchar).i32_store8(MemArg {
-            align: 0,
-            memory_index: 0,
-            offset: 0,
-        });
-    }
-
-    fn add_slot<'i>(&self, b: &mut InstructionSink<'i>, amount: i64) {
-        self.ptr(b);
-
-        self.ptr(b)
-            .i32_load8_u(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            })
-            .i32_const(amount as i32)
-            .i32_add()
-            .i32_store8(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            });
-    }
-
-    fn set_slot<'i>(&self, b: &mut InstructionSink<'i>, value: i64) {
-        self.ptr(b).i32_const(value as i32).i32_store8(MemArg {
-            align: 0,
-            memory_index: 0,
-            offset: 0,
-        });
-    }
-
-    fn set_move<'i>(&self, b: &mut InstructionSink<'i>, value: i64, offset: i64) {
-        self.ptr(b).i32_const(value as i32).i32_store8(MemArg {
-            align: 0,
-            memory_index: 0,
-            offset: 0,
-        });
-
-        self.ptr_offset(b, offset).local_set(self.tape_ptr);
-    }
-
-    fn add_move<'i>(&self, b: &mut InstructionSink<'i>, amount: i64, offset: i64) {
-        self.ptr(b);
-
-        self.ptr(b)
-            .i32_load8_u(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            })
-            .i32_const(amount as i32)
-            .i32_add()
-            .i32_store8(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            });
-
-        self.ptr_offset(b, offset).local_set(self.tape_ptr);
-    }
-
-    fn move_ptr<'i>(&self, b: &mut InstructionSink<'i>, amount: i64) {
-        self.ptr_offset(b, amount).local_set(self.tape_ptr);
-    }
-
-    fn copy_loop<'i>(&self, b: &mut InstructionSink<'i>, values: &BTreeMap<i64, i64>) {
-        for (offset, mul) in values {
-            self.ptr_offset(b, *offset)
-                .i32_const(PAGE_SIZE - 1)
-                .i32_and();
-
-            self.ptr_offset(b, *offset)
-                .i32_const(PAGE_SIZE - 1)
-                .i32_and()
-                .i32_load8_u(MemArg {
-                    offset: 0,
-                    align: 0,
-                    memory_index: 0,
-                });
-
-            self.ptr(b).i32_load8_u(MemArg {
-                offset: 0,
-                align: 0,
-                memory_index: 0,
-            });
-
-            b.i32_const(*mul as i32);
-            b.i32_mul();
-            b.i32_add();
-
-            b.i32_store8(MemArg {
-                align: 0,
-                memory_index: 0,
-                offset: 0,
-            });
-        }
-
-        self.ptr(b).i32_const(0).i32_store8(MemArg {
-            align: 0,
-            memory_index: 0,
-            offset: 0,
-        });
     }
 }

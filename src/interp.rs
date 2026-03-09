@@ -1,8 +1,10 @@
+use crate::{
+    TAPE_SIZE,
+    opt::{OptAction, ValueAction},
+};
 use std::io::{Read, Write};
 
-use crate::{TAPE_SIZE, opt::OptAction};
-
-pub struct ProgramState {
+struct ProgramState {
     tape: [u8; TAPE_SIZE],
     tape_ptr: i64,
 }
@@ -11,7 +13,7 @@ const TAPE_SIZE_I: i64 = TAPE_SIZE as i64;
 
 impl ProgramState {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             tape: [0; TAPE_SIZE],
             tape_ptr: 0,
@@ -19,50 +21,107 @@ impl ProgramState {
     }
 
     #[inline(always)]
-    pub fn add(&mut self, amnt: i64) {
-        self.tape[wrap_to_index(self.tape_ptr)] =
-            wrapping_conv((self.tape[wrap_to_index(self.tape_ptr)] as i64) + amnt);
+    pub const fn add(&mut self, amnt: i64) {
+        let ptr = wrap_to_index(self.tape_ptr);
+
+        self.tape[ptr] = wrapping_conv((self.tape[ptr] as i64) + amnt);
     }
 
     #[inline(always)]
-    pub fn move_ptr(&mut self, amnt: i64) {
+    pub const fn add_offset(&mut self, amnt: i64, offset: i64) {
+        let ptr = wrap_to_index(self.tape_ptr + offset);
+
+        self.tape[ptr] = wrapping_conv((self.tape[ptr] as i64) + amnt);
+    }
+
+    #[inline(always)]
+    pub const fn move_ptr(&mut self, amnt: i64) {
         self.tape_ptr = wrap_to_index(self.tape_ptr + amnt) as i64;
     }
 
     #[inline(always)]
-    pub fn get(&self) -> u8 {
+    pub const fn get(&self) -> u8 {
         self.tape[wrap_to_index(self.tape_ptr)]
     }
 
     #[inline(always)]
-    pub fn set(&mut self, value: u8) {
+    pub const fn get_offset(&self, offset: i64) -> u8 {
+        self.tape[wrap_to_index(self.tape_ptr + offset)]
+    }
+
+    #[inline(always)]
+    pub const fn set(&mut self, value: u8) {
         self.tape[wrap_to_index(self.tape_ptr)] = value;
+    }
+
+    #[inline(always)]
+    pub const fn set_offset(&mut self, value: u8, offset: i64) {
+        self.tape[wrap_to_index(self.tape_ptr + offset)] = value;
     }
 }
 
-pub fn eval<W: Write, R: Read>(
+fn eval<W: Write, R: Read>(
     insn: &OptAction,
     output: &mut W,
     input: &mut R,
     state: &mut ProgramState,
 ) {
     match insn {
-        OptAction::Output => {
-            output.write(&[state.get()]).unwrap();
-        }
+        OptAction::Noop => (),
 
-        OptAction::BulkPrint(n) => {
-            for _ in 0..*n {
-                output.write(&[state.get()]).unwrap();
+        OptAction::Value(it) => match it {
+            ValueAction::Output => {
+                let _ = output.write(&[state.get()]);
             }
-        }
 
-        OptAction::Input => {
-            let mut buf = [0u8; 1];
+            ValueAction::BulkPrint(n) => {
+                for _ in 0..*n {
+                    let _ = output.write(&[state.get()]);
+                }
+            }
 
-            input.read(&mut buf).unwrap();
-            state.set(buf[0]);
-        }
+            ValueAction::Input => {
+                let mut buf = [0u8; 1];
+
+                let _ = input.read(&mut buf);
+                state.set(buf[0]);
+            }
+
+            ValueAction::AddValue(v) => {
+                state.add(*v);
+            }
+
+            ValueAction::SetValue(v) => {
+                state.set(wrapping_conv(*v));
+            }
+        },
+
+        OptAction::OffsetValue(it, offset) => match it {
+            ValueAction::Output => {
+                output.write(&[state.get_offset(*offset)]).unwrap();
+            }
+
+            ValueAction::BulkPrint(n) => {
+                for _ in 0..*n {
+                    output.write(&[state.get_offset(*offset)]).unwrap();
+                }
+            }
+
+            ValueAction::Input => {
+                let mut buf = [0u8; 1];
+
+                input.read(&mut buf).unwrap();
+                state.set_offset(buf[0], *offset);
+            }
+
+            ValueAction::AddValue(v) => {
+                state.add_offset(*v, *offset);
+            }
+
+            ValueAction::SetValue(v) => {
+                state.set_offset(wrapping_conv(*v), *offset);
+            }
+        },
 
         OptAction::Loop(actions) => {
             while state.get() != 0 {
@@ -70,16 +129,6 @@ pub fn eval<W: Write, R: Read>(
                     eval(insn, output, input, state);
                 }
             }
-        }
-
-        OptAction::Noop => (),
-
-        OptAction::AddValue(v) => {
-            state.add(*v);
-        }
-
-        OptAction::SetValue(v) => {
-            state.set(wrapping_conv(*v));
         }
 
         OptAction::MovePtr(v) => {
@@ -118,19 +167,23 @@ pub fn eval<W: Write, R: Read>(
     }
 }
 
-pub fn wrapping_conv(a: i64) -> u8 {
+pub const fn wrapping_conv(a: i64) -> u8 {
     let a = if a < 0 { i64::MAX + a } else { a };
 
-    u8::try_from(a % i64::from(u8::MAX)).expect(&format!("Failed to convert i64 to u8: {a}"))
+    (a % (u8::MAX as i64)) as u8
 }
 
-pub fn wrap_to_index(a: i64) -> usize {
-    if a > TAPE_SIZE_I {
-        TAPE_SIZE - (a % TAPE_SIZE_I) as usize
-    } else if a < 0 {
-        (TAPE_SIZE_I + (a % TAPE_SIZE_I)) as usize
+pub const fn wrap_to_index(a: i64) -> usize {
+    if TAPE_SIZE.trailing_zeros() == 0 {
+        (a & TAPE_SIZE_I) as usize
     } else {
-        a as usize
+        if a > TAPE_SIZE_I {
+            TAPE_SIZE - (a % TAPE_SIZE_I) as usize
+        } else if a < 0 {
+            (TAPE_SIZE_I + (a % TAPE_SIZE_I)) as usize
+        } else {
+            a as usize
+        }
     }
 }
 

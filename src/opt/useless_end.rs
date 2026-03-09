@@ -1,10 +1,10 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 
 impl OptAction {
     fn does_output(&self) -> bool {
         match self {
             Self::Loop(it) => it.iter().any(|it| it.does_output()),
-            Self::BulkPrint(_) | Self::Output => true,
+            Self::Value(ValueAction::BulkPrint(_)) | Self::Value(ValueAction::Output) => true,
             _ => false,
         }
     }

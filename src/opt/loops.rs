@@ -1,4 +1,4 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn loops(&mut self) {
@@ -19,8 +19,8 @@ impl<'a> Optimizer<'a> {
 
                     if it.len() == 0 {
                         continue;
-                    } else if it.len() == 1 && matches!(it[0], OptAction::AddValue(_)) {
-                        self.actions.push(OptAction::SetValue(0));
+                    } else if it.len() == 1 && matches!(it[0], OptAction::Value(ValueAction::AddValue(_))) {
+                        self.actions.push(OptAction::Value(ValueAction::SetValue(0)));
                     } else {
                         let mut opt = self.sub(it);
 

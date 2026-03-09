@@ -1,4 +1,4 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn useless_ops(&mut self) {
@@ -7,7 +7,7 @@ impl<'a> Optimizer<'a> {
         std::mem::swap(&mut actions, &mut self.actions);
 
         for action in actions {
-            if action == OptAction::SetValue(0) {
+            if action == OptAction::Value(ValueAction::SetValue(0)) {
                 let mut cur = Vec::new();
 
                 self.actions.reverse();
