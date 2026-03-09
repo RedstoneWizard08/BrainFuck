@@ -1,0 +1,19 @@
+{
+    "name": "demo",
+    "version": "1.0.0",
+    "devDependencies": {
+        "@biomejs/biome": "2.3.8",
+        "@rspack/cli": "^1.7.7",
+        "@rspack/core": "^1.7.7",
+        "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+        "typescript": "^5.9.3"
+    },
+    "private": true,
+    "scripts": {
+        "build": "rspack build",
+        "check": "biome check --write",
+        "dev": "rspack dev",
+        "format": "biome format --write",
+        "preview": "rspack preview"
+    }
+}

@@ -2,7 +2,7 @@ mod simd;
 
 use crate::{
     TAPE_SIZE,
-    compiler::{CompilerOptions, TestingIo},
+    compiler::{CompilerOptions, CustomIo},
     interp::wrapping_conv,
     opt::OptAction,
 };
@@ -29,7 +29,7 @@ use target_lexicon::Triple;
 pub fn jit_compile_run(
     actions: &Vec<OptAction>,
     opts: CompilerOptions,
-    _testing_io: Option<Box<&dyn TestingIo>>,
+    _testing_io: Option<Box<&dyn CustomIo>>,
 ) {
     jit_compile(actions, opts, _testing_io)();
 }
@@ -37,7 +37,7 @@ pub fn jit_compile_run(
 pub fn jit_compile(
     actions: &Vec<OptAction>,
     opts: CompilerOptions,
-    _testing_io: Option<Box<&dyn TestingIo>>,
+    _testing_io: Option<Box<&dyn CustomIo>>,
 ) -> fn() -> () {
     let mut flags = settings::builder();
 

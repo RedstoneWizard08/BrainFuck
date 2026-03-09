@@ -66,6 +66,7 @@ macro_rules! jit_bench {
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
 pub const MANDELBROT: &str = include_str!("../tests/fixtures/basic/Mandelbrot.b");
 
+/// The function which runs the benchmarks.
 pub fn benches() {
     let mut c = Criterion::default().configure_from_args();
 

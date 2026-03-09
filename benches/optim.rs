@@ -1,76 +1,50 @@
-use bf::{compiler::CompilerOptions, opt::Optimizer, parse};
-use criterion::{Criterion, criterion_group, criterion_main};
-use std::hint::black_box;
+use bf::opt::Optimizer;
+use criterion::criterion_main;
 
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
 pub const MANDELBROT: &str = include_str!("../tests/fixtures/basic/Mandelbrot.b");
 
-fn hello_world(c: &mut Criterion) {
-    let program = parse(HELLO_WORLD);
-    let opts = CompilerOptions::default();
+macro_rules! optim_bench {
+    ($c: ident; $name: ident [$level: expr] = $display: expr) => {
+        $c.bench_function(
+            concat!("optimize [level=", stringify!($level), "]: ", $display),
+            |b| {
+                let opts = bf::compiler::CompilerOptions {
+                    opt_level: $level,
+                    ..Default::default()
+                };
 
-    c.bench_function("optimize: hello world", |b| {
-        b.iter(|| {
-            Optimizer::new(black_box(&opts), black_box(program.clone()))
-                .run_all()
-                .finish()
-        });
-    });
-}
+                let prog = bf::parse(paste::paste! { [<$name:upper>] });
 
-fn hello_world_8x(c: &mut Criterion) {
-    let program = parse(HELLO_WORLD);
-
-    let opts = CompilerOptions {
-        opt_level: 8,
-        ..Default::default()
+                b.iter(|| {
+                    std::hint::black_box(Optimizer::new(
+                        std::hint::black_box(&opts),
+                        std::hint::black_box(prog.clone()),
+                    ))
+                    .run_all()
+                });
+            },
+        );
     };
-
-    c.bench_function("optimize [8x]: hello world", |b| {
-        b.iter(|| {
-            Optimizer::new(black_box(&opts), black_box(program.clone()))
-                .run_all()
-                .finish()
-        });
-    });
 }
 
-fn mandelbrot(c: &mut Criterion) {
-    let program = parse(MANDELBROT);
-    let opts = CompilerOptions::default();
+macro_rules! optim_benches {
+    ($c: ident; $name: ident = $display: expr) => {{
+        let mut g = $c.benchmark_group(concat!("optim-", stringify!($name)));
 
-    c.bench_function("optimize: mandelbrot", |b| {
-        b.iter(|| {
-            Optimizer::new(black_box(&opts), black_box(program.clone()))
-                .run_all()
-                .finish()
-        });
-    });
+        optim_bench!(g; hello_world [0] = $display);
+        optim_bench!(g; hello_world [8] = $display);
+
+        g.finish();
+    }}
 }
 
-fn mandelbrot_8x(c: &mut Criterion) {
-    let program = parse(MANDELBROT);
+/// The function which runs the benchmarks.
+pub fn benches() {
+    let mut c = criterion::Criterion::default().configure_from_args();
 
-    let opts = CompilerOptions {
-        opt_level: 8,
-        ..Default::default()
-    };
-
-    c.bench_function("optimize [8x]: mandelbrot", |b| {
-        b.iter(|| {
-            Optimizer::new(black_box(&opts), black_box(program.clone()))
-                .run_all()
-                .finish()
-        });
-    });
+    optim_benches!(c; hello_world = "hello world");
+    optim_benches!(c; mandelbrot = "mandelbrot");
 }
-
-criterion_group!(
-    benches,
-    hello_world,
-    hello_world_8x,
-    mandelbrot,
-    mandelbrot_8x,
-);
 
 criterion_main!(benches);

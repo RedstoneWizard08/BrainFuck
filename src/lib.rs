@@ -1,8 +1,15 @@
 pub mod compiler;
 pub mod interp;
-pub mod link;
-pub mod linker;
 pub mod opt;
+
+#[cfg(feature = "wasm")]
+pub mod wasm;
+
+#[cfg(feature = "cranelift")]
+pub mod link;
+
+#[cfg(feature = "cranelift")]
+pub mod linker;
 
 #[cfg(feature = "cli")]
 pub mod cli;

@@ -12,3 +12,11 @@ bf.zip
 /*.jar
 /*.bc
 /*.ll
+/perf.*
+/flamegraph.svg
+/*.wasm
+/*.js
+/*.wat
+/*.out
+/pkg
+/demo/pkg

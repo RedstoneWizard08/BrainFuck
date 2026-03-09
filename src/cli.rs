@@ -1,8 +1,13 @@
-use crate::{compiler::CompilerOptions, interp::interpret, link, opt::Optimizer, parse};
+use crate::{compiler::CompilerOptions, interp::interpret, opt::Optimizer, parse};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::{fs, path::PathBuf, str::FromStr};
-use target_lexicon::Triple;
+use std::{fs, path::PathBuf};
+
+#[cfg(feature = "cranelift")]
+use std::str::FromStr;
+
+#[cfg(feature = "cranelift")]
+use crate::link;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -14,11 +19,27 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Run a BrainFuck program using JIT compilation.
+    #[cfg(feature = "cranelift")]
     #[command(name = "jit")]
     #[clap(aliases = &["j", "r", "run"])]
     Jit {
         /// The path to the file to run.
         file: PathBuf,
+
+        #[command(flatten)]
+        opts: CompilerOptions,
+    },
+
+    /// Compile a BrainFuck program to a WASM binary.
+    #[command(name = "wasm")]
+    #[clap(aliases = &["w", "wa"])]
+    Wasm {
+        /// The path to the file to compile.
+        file: PathBuf,
+
+        /// The path to output the WASM to.
+        #[arg(short, long, default_value = "./a.wasm")]
+        output: PathBuf,
 
         #[command(flatten)]
         opts: CompilerOptions,
@@ -36,6 +57,7 @@ pub enum Commands {
     },
 
     /// Compile a BrainFuck program to an executable binary.
+    #[cfg(feature = "cranelift")]
     #[command(name = "aot")]
     #[clap(aliases = &["c", "compile", "a", "b", "build"])]
     Aot {
@@ -43,8 +65,8 @@ pub enum Commands {
         file: PathBuf,
 
         /// The path to write the compiled binary file to.
-        #[arg(short, long)]
-        output: Option<PathBuf>,
+        #[arg(short, long, default_value = "./a.out")]
+        output: PathBuf,
 
         /// The target triple to compile for.
         #[arg(short, long)]
@@ -62,6 +84,7 @@ pub enum Commands {
 impl Commands {
     pub fn run(self) -> Result<()> {
         match self {
+            #[cfg(feature = "cranelift")]
             Self::Jit { file, opts } => {
                 let actions = parse(&fs::read_to_string(file)?);
 
@@ -70,6 +93,19 @@ impl Commands {
                     .finish_with_write()?;
 
                 crate::compiler::cranelift::jit_compile_run(&actions, opts, None)
+            }
+
+            Self::Wasm { file, output, opts } => {
+                let actions = parse(&fs::read_to_string(file)?);
+
+                let actions = Optimizer::new(&opts, actions)
+                    .run_all()
+                    .finish_with_write()?;
+
+                fs::write(
+                    output,
+                    crate::compiler::wasm::CodeGenerator::run(&opts, &actions),
+                )?;
             }
 
             Self::Interpret { file, opts } => {
@@ -82,6 +118,7 @@ impl Commands {
                 interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
             }
 
+            #[cfg(feature = "cranelift")]
             Self::Aot {
                 file,
                 output,
@@ -89,7 +126,6 @@ impl Commands {
                 object,
                 opts,
             } => {
-                let output = output.unwrap_or(PathBuf::from("a.out"));
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)
@@ -97,9 +133,9 @@ impl Commands {
                     .finish_with_write()?;
 
                 let target = target
-                    .map(|it| Triple::from_str(&it).ok())
+                    .map(|it| target_lexicon::Triple::from_str(&it).ok())
                     .flatten()
-                    .unwrap_or(Triple::host());
+                    .unwrap_or(target_lexicon::Triple::host());
 
                 let obj = crate::compiler::cranelift::aot_compile(&actions, &target, opts);
 

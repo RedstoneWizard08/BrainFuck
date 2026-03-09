@@ -1,0 +1,9 @@
+# [unstable]
+# build-std = ["std", "panic_unwind"]
+
+# [build]
+# target = "wasm32-unknown-unknown"
+# rustflags = ["-C", "panic=unwind"]
+
+# [profile.release]
+# panic = "unwind"

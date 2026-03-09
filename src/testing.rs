@@ -1,6 +1,6 @@
 #![allow(static_mut_refs)]
 
-use crate::compiler::TestingIo;
+use crate::compiler::CustomIo;
 
 static mut STDOUT: Vec<u8> = Vec::new();
 static mut STDIN: Vec<u8> = Vec::new();
@@ -56,7 +56,7 @@ impl BufTestingIo {
     }
 }
 
-impl TestingIo for BufTestingIo {
+impl CustomIo for BufTestingIo {
     fn getchar(&self) -> *const u8 {
         buf_getchar as *const u8
     }

@@ -5,6 +5,7 @@ mod loops;
 mod set_move;
 mod simd;
 mod simplify;
+mod useless_end;
 mod useless_ops;
 
 use crate::{
@@ -151,6 +152,7 @@ impl<'a> Optimizer<'a> {
             Optimization::Simplify => self.simplify(),
             Optimization::CopyLoop => self.copy_loop(),
             Optimization::Simd => self.simd_add(),
+            Optimization::UselessEnd => self.useless_end(),
         }
     }
 
@@ -164,6 +166,7 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::CopyLoop);
             self.run(Optimization::Simd);
             self.run(Optimization::Simplify);
+            self.run(Optimization::UselessEnd);
         }
 
         self

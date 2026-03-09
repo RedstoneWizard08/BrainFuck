@@ -1,0 +1,4 @@
+{
+    "biome.configurationPath": "${workspaceFolder}/demo/biome.json",
+    "biome.lsp.bin": "${workspaceFolder}/demo/node_modules/.bin/biome"
+}

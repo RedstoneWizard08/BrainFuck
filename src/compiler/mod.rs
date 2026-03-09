@@ -1,4 +1,6 @@
+#[cfg(feature = "cranelift")]
 pub mod cranelift;
+pub mod wasm;
 
 use clap::ValueEnum;
 use serde::Serialize;
@@ -8,10 +10,12 @@ use std::path::PathBuf;
 #[cfg_attr(feature = "cli", derive(clap::Args))]
 pub struct CompilerOptions {
     /// The path to write codegen IR to. When using the interpreter, this is ignored.
+    #[cfg(feature = "cranelift")]
     #[cfg_attr(feature = "cli", arg(long))]
     pub output_ir: Option<PathBuf>,
 
     /// The path to write ASM output to. When using the interpreter, this is ignored.
+    #[cfg(feature = "cranelift")]
     #[cfg_attr(feature = "cli", arg(long))]
     pub output_asm: Option<PathBuf>,
 
@@ -48,6 +52,9 @@ pub enum Optimization {
     /// Simplify redundant code, and remove add/move zero operations.
     Simplify,
 
+    /// Remove instructions at the end that don't affect the final output.
+    UselessEnd,
+
     /// Optimize copy and multiplication loops down to copy and multiply instructions.
     ///
     /// **Note:** Requires unsafe mode.
@@ -61,8 +68,8 @@ pub enum Optimization {
     Simd,
 }
 
-/// A trait for implementing I/O for testing with the JIT compiler.
-pub trait TestingIo {
+/// A trait for implementing custom I/O for use with the JIT compiler.
+pub trait CustomIo {
     /// Get a pointer to the getchar() function.
     fn getchar(&self) -> *const u8;
 

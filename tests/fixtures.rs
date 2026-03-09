@@ -1,3 +1,5 @@
+#![cfg(feature = "cranelift")]
+
 use bf::{
     compiler::{CompilerOptions, cranelift::jit_compile_run},
     opt::Optimizer,
