@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "wasm", "cranelift"]
+default = ["cli", "testing", "cranelift", "asm", "wasm", "web"]
 
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]
@@ -12,11 +12,17 @@ cli = ["dep:clap", "dep:pretty_env_logger"]
 # Tools for testing.
 testing = []
 
-# Support AOT & JIT compilation with Cranelift
+# Support AOT & JIT compilation with Cranelift.
 cranelift = ["dep:cranelift", "dep:cranelift-codegen", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native", "dep:cranelift-object", "dep:target-lexicon", "dep:lnk", "dep:which"]
 
-# Support WASM interop
-wasm = ["dep:wasm-bindgen", "dep:js-sys", "dep:wasm-bindgen-futures"]
+# Support WASM interop.
+web = ["dep:wasm-bindgen", "dep:js-sys", "dep:wasm-bindgen-futures"]
+
+# Support the WASM backend.
+wasm = ["dep:wasm-encoder", "dep:wasmparser"]
+
+# Support the raw ASM backend.
+asm = []
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -28,7 +34,7 @@ required-features = ["cli"]
 
 [dependencies]
 anyhow = "1.0.102"
-clap = { version = "4.5.60", features = ["derive"], optional = true }
+clap = { version = "4.6.0", features = ["derive"], optional = true }
 cranelift = { version = "0.129.1", optional = true }
 cranelift-codegen = { version = "0.129.1", optional = true, features = ["capstone", "core", "disas", "isle-errors", "x86"] }
 cranelift-jit = { version = "0.129.1", optional = true }
@@ -42,12 +48,12 @@ ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_stacker = "0.1.14"
 target-lexicon = { version = "0.13.5", optional = true }
-tempfile = "3.26.0"
+tempfile = "3.27.0"
 wasm-bindgen = { version = "0.2.114", optional = true }
 wasm-bindgen-futures = { version = "0.4.64", optional = true }
-wasm-encoder = "0.245.1"
-wasmparser = "0.245.1"
-which = { version = "8.0.1", optional = true }
+wasm-encoder = { version = "0.245.1", optional = true }
+wasmparser = { version = "0.245.1", optional = true }
+which = { version = "8.0.2", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 lnk = { version = "0.6.3", optional = true }

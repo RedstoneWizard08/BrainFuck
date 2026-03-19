@@ -1,5 +1,5 @@
 use crate::{
-    compiler::{CompilerOptions, Optimization},
+    backend::{CompilerOptions, Optimization},
     interp::interpret,
     opt::Optimizer,
     parse,
@@ -38,12 +38,29 @@ pub enum Commands {
     /// Compile a BrainFuck program to a WASM binary.
     #[command(name = "wasm")]
     #[clap(aliases = &["w", "wa"])]
+    #[cfg(feature = "wasm")]
     Wasm {
         /// The path to the file to compile.
         file: PathBuf,
 
         /// The path to output the WASM to.
         #[arg(short, long, default_value = "./a.wasm")]
+        output: PathBuf,
+
+        #[command(flatten)]
+        opts: CompilerOptions,
+    },
+
+    /// Compile a BrainFuck program to raw assembly.
+    #[command(name = "asm")]
+    #[clap(aliases = &["as"])]
+    #[cfg(feature = "asm")]
+    Asm {
+        /// The path to the file to compile.
+        file: PathBuf,
+
+        /// The path to output the assembly code to.
+        #[arg(short, long, default_value = "./a.asm")]
         output: PathBuf,
 
         #[command(flatten)]
@@ -97,9 +114,10 @@ impl Commands {
                     .run_all()
                     .finish_with_write()?;
 
-                crate::compiler::cranelift::jit_compile_run(&actions, opts, None)
+                crate::backend::cranelift::jit_compile_run(&actions, opts, None)
             }
 
+            #[cfg(feature = "wasm")]
             Self::Wasm { file, output, opts } => {
                 let actions = parse(&fs::read_to_string(file)?);
 
@@ -109,7 +127,28 @@ impl Commands {
 
                 fs::write(
                     output,
-                    crate::compiler::wasm::CodeGenerator::run(&opts, &actions),
+                    crate::backend::wasm::CodeGenerator::run(&opts, &actions),
+                )?;
+            }
+
+            #[cfg(feature = "asm")]
+            Self::Asm {
+                file,
+                output,
+                mut opts,
+            } => {
+                // Not currently supported with the ASM backend.
+                opts.disable(Optimization::Simd);
+
+                let actions = parse(&fs::read_to_string(file)?);
+
+                let actions = Optimizer::new(&opts, actions)
+                    .run_all()
+                    .finish_with_write()?;
+
+                fs::write(
+                    output,
+                    crate::backend::asm::CodeGenerator::run(&opts, &actions),
                 )?;
             }
 
@@ -144,7 +183,7 @@ impl Commands {
                     .flatten()
                     .unwrap_or(target_lexicon::Triple::host());
 
-                let obj = crate::compiler::cranelift::aot_compile(&actions, &target, opts);
+                let obj = crate::backend::cranelift::aot_compile(&actions, &target, opts);
 
                 if object {
                     fs::write(output, obj)?;

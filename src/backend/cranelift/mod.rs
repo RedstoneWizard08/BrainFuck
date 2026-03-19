@@ -8,7 +8,7 @@ mod value;
 
 use crate::{
     TAPE_SIZE,
-    compiler::{CompilerOptions, CustomIo},
+    backend::{CompilerOptions, CustomIo},
     opt::{OptAction, ValueAction},
 };
 use cranelift::{

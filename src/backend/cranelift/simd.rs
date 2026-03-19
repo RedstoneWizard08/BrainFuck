@@ -1,4 +1,4 @@
-use crate::compiler::cranelift::CodeGenerator;
+use crate::backend::cranelift::CodeGenerator;
 use cranelift::prelude::{InstBuilder, MemFlags, Type, types};
 use cranelift_module::Module;
 

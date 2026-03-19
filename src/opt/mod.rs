@@ -11,7 +11,7 @@ mod useless_ops;
 
 use crate::{
     Action,
-    compiler::{CompilerOptions, Optimization},
+    backend::{CompilerOptions, Optimization},
 };
 use anyhow::Result;
 use ron::{Options, Serializer, ser::PrettyConfig};

@@ -6,7 +6,7 @@ mod simd;
 mod value;
 
 use crate::{
-    compiler::CompilerOptions,
+    backend::CompilerOptions,
     opt::{OptAction, ValueAction},
 };
 use wasm_encoder::{

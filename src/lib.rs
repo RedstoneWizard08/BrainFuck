@@ -1,8 +1,8 @@
-pub mod compiler;
+pub mod backend;
 pub mod interp;
 pub mod opt;
 
-#[cfg(feature = "wasm")]
+#[cfg(feature = "web")]
 pub mod wasm;
 
 #[cfg(feature = "cranelift")]

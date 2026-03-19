@@ -1,5 +1,8 @@
+#[cfg(not(feature = "wasm"))]
+compile_error!("Web interop requires the WASM backend!");
+
 use crate::{
-    compiler::{CompilerOptions, wasm::CodeGenerator},
+    backend::{CompilerOptions, wasm::CodeGenerator},
     opt::Optimizer,
     parse,
 };

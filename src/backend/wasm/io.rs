@@ -1,4 +1,4 @@
-use crate::compiler::wasm::CodeGenerator;
+use crate::backend::wasm::CodeGenerator;
 use wasm_encoder::{InstructionSink, MemArg};
 
 impl<'a> CodeGenerator<'a> {

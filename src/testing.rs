@@ -1,6 +1,6 @@
 #![allow(static_mut_refs)]
 
-use crate::compiler::CustomIo;
+use crate::backend::CustomIo;
 
 static mut STDOUT: Vec<u8> = Vec::new();
 static mut STDIN: Vec<u8> = Vec::new();

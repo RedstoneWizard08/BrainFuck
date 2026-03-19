@@ -9,7 +9,7 @@ macro_rules! optim_bench {
         $c.bench_function(
             concat!("optimize [level=", stringify!($level), "]: ", $display),
             |b| {
-                let opts = bf::compiler::CompilerOptions {
+                let opts = bf::backend::CompilerOptions {
                     opt_level: $level,
                     ..Default::default()
                 };

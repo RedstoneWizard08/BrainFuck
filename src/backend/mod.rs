@@ -1,5 +1,10 @@
 #[cfg(feature = "cranelift")]
 pub mod cranelift;
+
+#[cfg(feature = "asm")]
+pub mod asm;
+
+#[cfg(feature = "wasm")]
 pub mod wasm;
 
 use clap::ValueEnum;
@@ -75,4 +80,12 @@ pub trait CustomIo {
 
     /// Get a pointer to the putchar() function.
     fn putchar(&self) -> *const u8;
+}
+
+impl CompilerOptions {
+    pub fn disable(&mut self, opt: Optimization) {
+        if !self.no_optimize.contains(&opt) {
+            self.no_optimize.push(opt);
+        }
+    }
 }

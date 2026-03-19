@@ -20,3 +20,4 @@ bf.zip
 /*.out
 /pkg
 /demo/pkg
+/*.o

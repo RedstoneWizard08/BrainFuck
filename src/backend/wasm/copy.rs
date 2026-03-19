@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use wasm_encoder::{InstructionSink, MemArg};
 
-use crate::compiler::wasm::{CodeGenerator, PAGE_SIZE};
+use crate::backend::wasm::{CodeGenerator, PAGE_SIZE};
 
 impl<'a> CodeGenerator<'a> {
     pub(super) fn copy_loop<'i>(&self, b: &mut InstructionSink<'i>, values: &BTreeMap<i64, i64>) {

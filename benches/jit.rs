@@ -3,7 +3,7 @@ use std::hint::black_box;
 
 macro_rules! opts {
     ($level: expr) => {
-        bf::compiler::CompilerOptions {
+        bf::backend::CompilerOptions {
             opt_level: $level,
             ..Default::default()
         }
@@ -21,7 +21,7 @@ macro_rules! jit_single_bench {
 
                 c.bench_function(concat!("jit compile [opt_level=", stringify!($level), "]: ", $display), |b| {
                     b.iter(|| {
-                        bf::compiler::cranelift::jit_compile(
+                        bf::backend::cranelift::jit_compile(
                             black_box(&program),
                             black_box(opts.clone()),
                             black_box(Some(Box::new(&io))),
@@ -41,7 +41,7 @@ macro_rules! jit_single_bench {
                 let program = bf::parse([<$name:upper>]);
                 let program = bf::opt::Optimizer::new(&opts, program).run_all().finish();
                 let io = bf::testing::BufTestingIo::new();
-                let func = bf::compiler::cranelift::jit_compile(&program, opts, Some(Box::new(&io)));
+                let func = bf::backend::cranelift::jit_compile(&program, opts, Some(Box::new(&io)));
 
                 c.bench_function(concat!("jit run [opt_level=", stringify!($level), "]: ", $display), |b| {
                     b.iter(|| func());
