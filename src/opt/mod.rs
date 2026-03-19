@@ -14,9 +14,10 @@ use crate::{
     backend::{CompilerOptions, Optimization},
 };
 use anyhow::Result;
+use log::debug;
 use ron::{Options, Serializer, ser::PrettyConfig};
 use serde::Serialize;
-use std::{collections::BTreeMap, fs};
+use std::{collections::BTreeMap, fs, time::Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ValueAction {
@@ -27,7 +28,7 @@ pub enum ValueAction {
     BulkPrint(i64),
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum OptAction {
     Noop,
     Value(ValueAction),
@@ -150,6 +151,12 @@ impl<'a> Optimizer<'a> {
             return;
         }
 
+        let now = Instant::now();
+
+        debug!("-----------------------------------------------");
+        debug!("Starting optimization pass: {opt}");
+        debug!("Instruction count (depth=1): {}", self.actions.len());
+
         match opt {
             Optimization::Chain => self.chains(),
             Optimization::Loop => self.loops(),
@@ -160,7 +167,13 @@ impl<'a> Optimizer<'a> {
             Optimization::CopyLoop => self.copy_loop(),
             Optimization::Simd => self.simd_add(),
             Optimization::UselessEnd => self.useless_end(),
-        }
+            Optimization::Offsets => self.offsets(),
+        };
+
+        debug!("Completed optimization pass: {opt}");
+        debug!("Took {} μs", now.elapsed().as_micros());
+        debug!("Instruction count (depth=1): {}", self.actions.len());
+        debug!("-----------------------------------------------");
     }
 
     pub fn run_all(mut self) -> Self {
@@ -174,10 +187,7 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::Simd);
             self.run(Optimization::Simplify);
             self.run(Optimization::UselessEnd);
-
-            if self.opts.opt_level > 0 {
-                self.offsets();
-            }
+            self.run(Optimization::Offsets);
         }
 
         self

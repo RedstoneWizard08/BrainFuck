@@ -8,6 +8,7 @@ pub mod asm;
 pub mod wasm;
 
 use clap::ValueEnum;
+use enum_display::EnumDisplay;
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -35,9 +36,17 @@ pub struct CompilerOptions {
     /// Optimizations to be disabled during compilation.
     #[cfg_attr(feature = "cli", arg(long, alias = "--no-opt", value_enum))]
     pub no_optimize: Vec<Optimization>,
+
+    /// The size of the tape.
+    ///
+    /// For performance reasons, the interpreter ignores this option.
+    #[cfg_attr(feature = "cli", arg(short = 'T', long, default_value_t = u16::MAX as usize))]
+    pub tape_size: usize,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Serialize, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay,
+)]
 pub enum Optimization {
     /// Chain math and shift operations.
     Chain,
@@ -59,6 +68,9 @@ pub enum Optimization {
 
     /// Remove instructions at the end that don't affect the final output.
     UselessEnd,
+
+    /// Replace groups of instructions followed by moves with single instructions.
+    Offsets,
 
     /// Optimize copy and multiplication loops down to copy and multiply instructions.
     ///

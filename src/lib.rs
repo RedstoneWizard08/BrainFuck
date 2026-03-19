@@ -19,8 +19,6 @@ pub mod testing;
 
 use serde::Serialize;
 
-pub const TAPE_SIZE: usize = u16::MAX as usize;
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Action {
     Right,

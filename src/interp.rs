@@ -1,15 +1,13 @@
-use crate::{
-    TAPE_SIZE,
-    opt::{OptAction, ValueAction},
-};
+use crate::opt::{OptAction, ValueAction};
 use std::io::{Read, Write};
+
+const TAPE_SIZE: usize = u16::MAX as usize;
+const TAPE_SIZE_I: i64 = TAPE_SIZE as i64;
 
 struct ProgramState {
     tape: [u8; TAPE_SIZE],
     tape_ptr: i64,
 }
-
-const TAPE_SIZE_I: i64 = TAPE_SIZE as i64;
 
 impl ProgramState {
     #[inline(always)]

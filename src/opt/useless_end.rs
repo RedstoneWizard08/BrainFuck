@@ -5,6 +5,8 @@ impl OptAction {
         match self {
             Self::Loop(it) => it.iter().any(|it| it.does_output()),
             Self::Value(ValueAction::BulkPrint(_)) | Self::Value(ValueAction::Output) => true,
+            Self::OffsetValue(ValueAction::BulkPrint(_), _)
+            | Self::OffsetValue(ValueAction::Output, _) => true,
             _ => false,
         }
     }
@@ -21,11 +23,10 @@ impl<'a> Optimizer<'a> {
         let mut any = false;
 
         for action in actions {
-            if action.does_output() {
-                any = true;
-            }
-
             if any {
+                self.actions.push(action);
+            } else if action.does_output() {
+                any = true;
                 self.actions.push(action);
             }
         }

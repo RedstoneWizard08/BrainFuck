@@ -7,7 +7,6 @@ mod util;
 mod value;
 
 use crate::{
-    TAPE_SIZE,
     backend::{CompilerOptions, CustomIo},
     opt::{OptAction, ValueAction},
 };
@@ -203,11 +202,11 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         let ptr = module.target_config().pointer_type();
         let byte = types::I8;
 
-        let tape_data = StackSlotData::new(StackSlotKind::ExplicitSlot, TAPE_SIZE as u32, 0);
+        let tape_data = StackSlotData::new(StackSlotKind::ExplicitSlot, opts.tape_size as u32, 0);
         let tape = fb.create_sized_stack_slot(tape_data);
         let tape_addr = fb.ins().stack_addr(types::I64, tape, 0);
         let zero = fb.ins().iconst(byte, 0);
-        let size = fb.ins().iconst(types::I64, TAPE_SIZE as i64);
+        let size = fb.ins().iconst(types::I64, opts.tape_size as i64);
 
         fb.call_memset(module.target_config(), tape_addr, zero, size);
 

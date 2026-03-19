@@ -7,7 +7,6 @@ mod simd;
 mod value;
 
 use crate::{
-    TAPE_SIZE,
     backend::{
         CompilerOptions,
         asm::insn::{AsmBuilder, Data, Insn, Reg, TargetArch},
@@ -57,12 +56,15 @@ impl<'a> CodeGenerator<'a> {
 
     fn compile(&mut self, actions: &Vec<OptAction>) {
         self.sect("bss");
-        self.resb(TAPE_DATA_NAME, TAPE_SIZE as i64);
+        self.resb(TAPE_DATA_NAME, self.opts.tape_size as i64);
         self.sect("text");
         self.global("_start");
         self.label("_start");
         self.lea(self.ptr, Data::Label(TAPE_DATA_NAME));
-        self.add(self.ptr, TAPE_SIZE as i64 / 2);
+
+        // overflow protection - move the cursor to the center to prevent
+        // any potential overflow problems
+        self.add(self.ptr, self.opts.tape_size as i64 / 2);
 
         for insn in actions {
             self.translate(insn);
