@@ -298,6 +298,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
+            OptAction::Scan(_skip) => todo!(),
         }
     }
 }

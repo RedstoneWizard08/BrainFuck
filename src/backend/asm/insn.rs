@@ -42,6 +42,149 @@ pub enum Reg {
     Spl,
 }
 
+macro_rules! regs {
+    {
+        enum $name: ident {
+            $($reg: ident),*
+            $(,)?
+        }
+    } => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum $name {
+            $($reg),*
+        }
+
+        impl $name {
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(
+                        Self::$reg => paste::paste! { stringify!([<$reg:lower>]) }
+                    ),*
+                }
+            }
+        }
+    };
+}
+
+regs! {
+    enum SimdReg {
+        // AVX-512
+        Zmm0,
+        Zmm1,
+        Zmm2,
+        Zmm3,
+        Zmm4,
+        Zmm5,
+        Zmm6,
+        Zmm7,
+        Zmm8,
+        Zmm9,
+        Zmm10,
+        Zmm11,
+        Zmm12,
+        Zmm13,
+        Zmm14,
+        Zmm15,
+        Zmm16,
+        Zmm17,
+        Zmm18,
+        Zmm19,
+        Zmm20,
+        Zmm21,
+        Zmm22,
+        Zmm23,
+        Zmm24,
+        Zmm25,
+        Zmm26,
+        Zmm27,
+        Zmm28,
+        Zmm29,
+        Zmm30,
+        Zmm31,
+
+        // AVX-256
+        Ymm0,
+        Ymm1,
+        Ymm2,
+        Ymm3,
+        Ymm4,
+        Ymm5,
+        Ymm6,
+        Ymm7,
+        Ymm8,
+        Ymm9,
+        Ymm10,
+        Ymm11,
+        Ymm12,
+        Ymm13,
+        Ymm14,
+        Ymm15,
+        Ymm16,
+        Ymm17,
+        Ymm18,
+        Ymm19,
+        Ymm20,
+        Ymm21,
+        Ymm22,
+        Ymm23,
+        Ymm24,
+        Ymm25,
+        Ymm26,
+        Ymm27,
+        Ymm28,
+        Ymm29,
+        Ymm30,
+        Ymm31,
+
+        // AVX-128
+        Xmm0,
+        Xmm1,
+        Xmm2,
+        Xmm3,
+        Xmm4,
+        Xmm5,
+        Xmm6,
+        Xmm7,
+        Xmm8,
+        Xmm9,
+        Xmm10,
+        Xmm11,
+        Xmm12,
+        Xmm13,
+        Xmm14,
+        Xmm15,
+        Xmm16,
+        Xmm17,
+        Xmm18,
+        Xmm19,
+        Xmm20,
+        Xmm21,
+        Xmm22,
+        Xmm23,
+        Xmm24,
+        Xmm25,
+        Xmm26,
+        Xmm27,
+        Xmm28,
+        Xmm29,
+        Xmm30,
+        Xmm31,
+    }
+}
+
+regs! {
+    enum MaskReg {
+        K0,
+        K1,
+        K2,
+        K3,
+        K4,
+        K5,
+        K6,
+        K7,
+    }
+}
+
 impl Reg {
     pub fn name(&self, arch: TargetArch) -> &'static str {
         match arch {
@@ -91,7 +234,7 @@ impl Reg {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Data {
     Reg(Reg),
     Const(i64),
@@ -100,6 +243,15 @@ pub enum Data {
     RegPtr(Reg),
     RegPtr2(Reg, Reg),
     RegPtrOffset(Reg, i64),
+
+    SimdReg(SimdReg),
+
+    /// (Data, Mask, Zero)
+    ///
+    /// Zero: zeroing modifier, will add `{z}`
+    Masked(Box<Data>, MaskReg, bool),
+
+    RelLabel(String),
 }
 
 impl Data {
@@ -111,81 +263,56 @@ impl Data {
 
             Data::RegPtr(reg) => format!("[{}]", reg.name(arch)),
             Data::RegPtr2(r1, r2) => format!("[{} + {}]", r1.name(arch), r2.name(arch)),
-            Data::RegPtrOffset(reg, offs) => format!("[{} + {offs}]", reg.name(arch)),
+
+            Data::RegPtrOffset(reg, offs) => {
+                if *offs == 0 {
+                    format!("[{}]", reg.name(arch))
+                } else {
+                    format!("[{} + {offs}]", reg.name(arch))
+                }
+            }
+
+            Data::SimdReg(reg) => format!("{}", reg.name()),
+
+            Data::Masked(d, m, z) => format!(
+                "{}{{{}}}{}",
+                d.stringify(arch),
+                m.name(),
+                if *z { "{z}" } else { "" }
+            ),
+
+            Data::RelLabel(it) => format!("[rip + {it}]"),
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Insn {
-    Mov(Data, Data),
-    Lea(Data, Data),
-    Add(Data, Data),
-    Imul(Data, Data, Data),
-    Cmp(Data, Data),
-    Je(String),
-    Jmp(String),
-    Label(String),
-    Section(&'static str),
-    Resb(&'static str, i64),
-    Global(&'static str),
-    Syscall,
-}
+macro_rules! insns {
+    {$(
+        $name: ident$((
+            $($param: ident: $ty: ty),*
+        ))?
+    ),* $(,)?} => {
+        #[allow(unused)]
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum Insn {
+            $($name$(($($ty),*))?),*
+        }
 
-pub trait AsmBuilder {
-    fn insns(&mut self) -> &mut Vec<Insn>;
+        #[allow(unused)]
+        pub trait AsmBuilder {
+            fn insns(&mut self) -> &mut Vec<Insn>;
 
-    fn mov(&mut self, target: impl Into<Data>, src: impl Into<Data>) {
-        self.insns().push(Insn::Mov(target.into(), src.into()));
-    }
-
-    fn lea(&mut self, target: impl Into<Data>, src: impl Into<Data>) {
-        self.insns().push(Insn::Lea(target.into(), src.into()));
-    }
-
-    fn add(&mut self, target: impl Into<Data>, src: impl Into<Data>) {
-        self.insns().push(Insn::Add(target.into(), src.into()));
-    }
-
-    fn imul(&mut self, target: impl Into<Data>, src: impl Into<Data>, mul: impl Into<Data>) {
-        self.insns()
-            .push(Insn::Imul(target.into(), src.into(), mul.into()));
-    }
-
-    fn cmp(&mut self, a: impl Into<Data>, b: impl Into<Data>) {
-        self.insns().push(Insn::Cmp(a.into(), b.into()));
-    }
-
-    fn je(&mut self, label: impl AsRef<str>) {
-        self.insns().push(Insn::Je(label.as_ref().into()));
-    }
-
-    fn jmp(&mut self, label: impl AsRef<str>) {
-        self.insns().push(Insn::Jmp(label.as_ref().into()));
-    }
-
-    fn label(&mut self, label: impl AsRef<str>) {
-        self.insns().push(Insn::Label(label.as_ref().into()));
-    }
-
-    fn sect(&mut self, name: &'static str) {
-        self.insns().push(Insn::Section(name));
-    }
-
-    fn resb(&mut self, name: &'static str, size: i64) {
-        self.insns().push(Insn::Resb(name, size));
-    }
-
-    fn global(&mut self, label: &'static str) {
-        self.insns().push(Insn::Global(label));
-    }
-
-    fn syscall(&mut self) {
-        self.insns().push(Insn::Syscall);
-    }
+            $(paste::paste! {
+                fn [<$name: lower>](&mut self $(, $($param: impl Into<$ty>),*)?) {
+                    self.insns().push(Insn::$name $(($($param.into()),*))?);
+                }
+            })*
+        }
+    };
 }
 
 const PRE: &str = "    ";
+const GNU_ASM: bool = true;
 
 fn prefixes(a: &Data, b: &Data) -> (&'static str, &'static str) {
     match (a, b) {
@@ -206,7 +333,32 @@ fn prefixes(a: &Data, b: &Data) -> (&'static str, &'static str) {
     }
 }
 
-const GNU_ASM: bool = true;
+insns! {
+    Mov(target: Data, src: Data),
+    Lea(target: Data, src: Data),
+    Add(target: Data, src: Data),
+    Imul(target: Data, src: Data, mul: Data),
+    Cmp(a: Data, b: Data),
+    Je(label: String),
+    Jne(label: String),
+    Jmp(label: String),
+    Label(label: String),
+    Section(name: &'static str),
+    Resb(name: &'static str, size: i64),
+    Global(label: &'static str),
+    Syscall,
+
+    // SIMD
+    Vpbroadcastb(target: SimdReg, src: Data),
+    Vmovdqu8(target: Data, src: Data),
+    Vpaddb(target: SimdReg, src: SimdReg, add: Data),
+
+    // Masks
+    Kmovq(target: MaskReg, src: Data),
+
+    // Extra
+    P2Align(pow2: Data, max_skip: Data),
+}
 
 impl Insn {
     pub fn stringify(&self, arch: TargetArch) -> String {
@@ -232,7 +384,7 @@ impl Insn {
             }
 
             Insn::Add(a, b) => {
-                let mut b = *b;
+                let mut b = b.clone();
 
                 let op = match &mut b {
                     Data::Const(it) => {
@@ -263,8 +415,18 @@ impl Insn {
                 c.stringify(arch)
             ),
 
-            Insn::Cmp(a, b) => format!("{PRE}cmp {}, {}", a.stringify(arch), b.stringify(arch)),
+            Insn::Cmp(a, b) => {
+                let (p0, p1) = prefixes(a, b);
+
+                format!(
+                    "{PRE}cmp {p0}{}, {p1}{}",
+                    a.stringify(arch),
+                    b.stringify(arch)
+                )
+            }
+
             Insn::Je(it) => format!("{PRE}je {it}"),
+            Insn::Jne(it) => format!("{PRE}jne {it}"),
             Insn::Jmp(it) => format!("{PRE}jmp {it}"),
             Insn::Label(it) => format!("{it}:"),
 
@@ -293,6 +455,43 @@ impl Insn {
             }
 
             Insn::Syscall => format!("{PRE}syscall"),
+
+            Insn::Vpbroadcastb(target, src) => {
+                format!(
+                    "{PRE}vpbroadcastb {}, {}",
+                    target.name(),
+                    src.stringify(arch)
+                )
+            }
+
+            Insn::Vmovdqu8(target, src) => {
+                format!(
+                    "{PRE}vmovdqu8 {}, {}",
+                    target.stringify(arch),
+                    src.stringify(arch)
+                )
+            }
+
+            Insn::Vpaddb(target, src, add) => {
+                format!(
+                    "{PRE}vpaddb {}, {}, {}",
+                    target.name(),
+                    src.name(),
+                    add.stringify(arch)
+                )
+            }
+
+            Insn::Kmovq(target, src) => {
+                format!("{PRE}kmovq {}, {}", target.name(), src.stringify(arch))
+            }
+
+            Insn::P2Align(pow2, max_skip) => {
+                format!(
+                    ".p2align {},,{}",
+                    pow2.stringify(arch),
+                    max_skip.stringify(arch)
+                )
+            }
         }
     }
 }
@@ -303,8 +502,32 @@ impl Into<Data> for i64 {
     }
 }
 
+impl Into<Data> for i32 {
+    fn into(self) -> Data {
+        Data::Const(self as i64)
+    }
+}
+
+impl Into<Data> for i16 {
+    fn into(self) -> Data {
+        Data::Const(self as i64)
+    }
+}
+
+impl Into<Data> for i8 {
+    fn into(self) -> Data {
+        Data::Const(self as i64)
+    }
+}
+
 impl Into<Data> for Reg {
     fn into(self) -> Data {
         Data::Reg(self)
+    }
+}
+
+impl Into<Data> for SimdReg {
+    fn into(self) -> Data {
+        Data::SimdReg(self)
     }
 }

@@ -72,6 +72,9 @@ pub enum Optimization {
     /// Replace groups of instructions followed by moves with single instructions.
     Offsets,
 
+    /// Replace scanners with optimized variants.
+    Scanners,
+
     /// Optimize copy and multiplication loops down to copy and multiply instructions.
     ///
     /// **Note:** Requires unsafe mode.

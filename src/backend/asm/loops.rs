@@ -1,8 +1,5 @@
 use crate::{
-    backend::asm::{
-        CodeGenerator,
-        insn::{AsmBuilder, Reg},
-    },
+    backend::asm::{CodeGenerator, insn::AsmBuilder},
     opt::OptAction,
 };
 
@@ -14,8 +11,7 @@ impl<'a> CodeGenerator<'a> {
         self.block += 1;
 
         self.label(&name);
-        self.mov(Reg::Eax, self.ptr.ptr());
-        self.cmp(Reg::Al, 0);
+        self.cmp(self.ptr.ptr(), 0);
         self.je(&end);
 
         for insn in actions {
@@ -23,6 +19,23 @@ impl<'a> CodeGenerator<'a> {
         }
 
         self.jmp(name);
+        self.label(end);
+    }
+
+    pub(super) fn scan(&mut self, skip: i64) {
+        let scan = format!("scan_{}", self.block);
+        let end = format!("scan_end_{}", self.block);
+
+        self.block += 1;
+
+        self.cmp(self.ptr.ptr(), 0);
+        self.je(&end);
+
+        self.label(&scan);
+        self.add(self.ptr, skip);
+        self.cmp(self.ptr.ptr(), 0);
+        self.jne(scan);
+
         self.label(end);
     }
 }

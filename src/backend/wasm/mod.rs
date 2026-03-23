@@ -147,6 +147,7 @@ impl<'a> CodeGenerator<'a> {
             OptAction::AddAndMove(v, o) => self.add_move(b, *v, *o),
             OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(b, a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(b, &v),
+            OptAction::Scan(_skip) => todo!(),
         }
     }
 }

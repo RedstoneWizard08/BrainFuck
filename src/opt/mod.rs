@@ -3,6 +3,7 @@ mod copy_loop;
 mod dead_code;
 mod loops;
 mod offsets;
+mod scan;
 mod set_move;
 mod simd;
 mod simplify;
@@ -39,11 +40,15 @@ pub enum OptAction {
     CopyLoop(BTreeMap<i64, i64>),
     SimdAddMove(Vec<i8>, i64),
     Loop(Vec<OptAction>),
+
+    /// 0 = how many cells to skip while scanning
+    Scan(i64),
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum ChainType {
     Add(i64),
+    Set(i64),
     Move(i64),
     Print(i64),
 }
@@ -53,6 +58,7 @@ impl ChainType {
     pub fn action(&self) -> OptAction {
         match self {
             Self::Add(value) => OptAction::Value(ValueAction::AddValue(*value)),
+            Self::Set(value) => OptAction::Value(ValueAction::SetValue(*value)),
             Self::Move(value) => OptAction::MovePtr(*value),
             Self::Print(value) => OptAction::Value(ValueAction::BulkPrint(*value)),
         }
@@ -63,6 +69,18 @@ impl ChainType {
         match self {
             ChainType::Add(me) => {
                 if let ChainType::Add(it) = other {
+                    *me = *me + *it;
+                    true
+                } else {
+                    false
+                }
+            }
+
+            ChainType::Set(me) => {
+                if let ChainType::Set(it) = other {
+                    *me = *it;
+                    true
+                } else if let ChainType::Add(it) = other {
                     *me = *me + *it;
                     true
                 } else {
@@ -168,6 +186,7 @@ impl<'a> Optimizer<'a> {
             Optimization::Simd => self.simd_add(),
             Optimization::UselessEnd => self.useless_end(),
             Optimization::Offsets => self.offsets(),
+            Optimization::Scanners => self.scanners(),
         };
 
         debug!("Completed optimization pass: {opt}");
@@ -182,12 +201,13 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::Loop);
             self.run(Optimization::UselessOps);
             self.run(Optimization::DeadCode);
+            self.run(Optimization::Offsets);
+            self.run(Optimization::Simd);
             self.run(Optimization::SetMove);
             self.run(Optimization::CopyLoop);
-            self.run(Optimization::Simd);
+            self.run(Optimization::Scanners);
             self.run(Optimization::Simplify);
             self.run(Optimization::UselessEnd);
-            self.run(Optimization::Offsets);
         }
 
         self

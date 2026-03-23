@@ -14,7 +14,23 @@ use crate::{
     opt::{OptAction, ValueAction},
 };
 
-const TAPE_DATA_NAME: &str = "tape";
+const ASM_MINIFY: bool = true;
+const TAPE_DATA_NAME: &str = if ASM_MINIFY { "t" } else { "tape" };
+
+pub struct Rodata {
+    pub name: String,
+    pub data: Vec<String>,
+    pub align: usize,
+}
+
+impl Rodata {
+    pub fn stringify(&self) -> String {
+        let mut s = self.data.join("\n");
+
+        s.insert_str(0, &format!(".align {}\n{}:\n", self.align, self.name));
+        s
+    }
+}
 
 #[allow(unused)]
 pub struct CodeGenerator<'a> {
@@ -23,6 +39,8 @@ pub struct CodeGenerator<'a> {
     ptr: Reg,
     ptr_32: Reg,
     block: usize,
+    data: usize,
+    rodata: Vec<Rodata>,
 }
 
 impl<'a> CodeGenerator<'a> {
@@ -33,6 +51,8 @@ impl<'a> CodeGenerator<'a> {
             ptr: Reg::Rbx,
             ptr_32: Reg::Esi,
             block: 0,
+            data: 0,
+            rodata: Vec::new(),
         };
 
         let arch = TargetArch::X86_64; // TODO: Options
@@ -48,6 +68,18 @@ impl<'a> CodeGenerator<'a> {
 
         s.insert_str(0, ".intel_syntax noprefix\n");
 
+        if !me.rodata.is_empty() {
+            s.push_str("\n.section .rodata\n");
+
+            s.push_str(
+                &me.rodata
+                    .into_iter()
+                    .map(|it| it.stringify())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
+        }
+
         // GNU assembler likes a new line at the end and shows a warning otherwise XD
         s.push('\n');
 
@@ -55,9 +87,9 @@ impl<'a> CodeGenerator<'a> {
     }
 
     fn compile(&mut self, actions: &Vec<OptAction>) {
-        self.sect("bss");
+        self.section("bss");
         self.resb(TAPE_DATA_NAME, self.opts.tape_size as i64);
-        self.sect("text");
+        self.section("text");
         self.global("_start");
         self.label("_start");
         self.lea(self.ptr, Data::Label(TAPE_DATA_NAME));
@@ -99,8 +131,9 @@ impl<'a> CodeGenerator<'a> {
             OptAction::MovePtr(v) => self.move_ptr(*v),
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
-            OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
+            OptAction::SimdAddMove(a, o) => self.simd_add_arr_move(a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
+            OptAction::Scan(s) => self.scan(*s),
         }
     }
 }

@@ -162,6 +162,8 @@ fn eval<W: Write, R: Read>(
         OptAction::SimdAddMove(_, _) => {
             panic!("SIMD Add & Move instructions are not supported in the interpreter!")
         }
+
+        OptAction::Scan(_skip) => todo!(),
     }
 }
 

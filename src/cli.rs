@@ -107,7 +107,9 @@ impl Commands {
     pub fn run(self) -> Result<()> {
         match self {
             #[cfg(feature = "cranelift")]
-            Self::Jit { file, opts } => {
+            Self::Jit { file, mut opts } => {
+                opts.disable(Optimization::Scanners); // TODO
+
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)
@@ -118,7 +120,13 @@ impl Commands {
             }
 
             #[cfg(feature = "wasm")]
-            Self::Wasm { file, output, opts } => {
+            Self::Wasm {
+                file,
+                output,
+                mut opts,
+            } => {
+                opts.disable(Optimization::Scanners); // TODO
+
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)
@@ -132,14 +140,7 @@ impl Commands {
             }
 
             #[cfg(feature = "asm")]
-            Self::Asm {
-                file,
-                output,
-                mut opts,
-            } => {
-                // Not currently supported with the ASM backend.
-                opts.disable(Optimization::Simd);
-
+            Self::Asm { file, output, opts } => {
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)
@@ -153,7 +154,8 @@ impl Commands {
             }
 
             Self::Interpret { file, mut opts } => {
-                opts.no_optimize.push(Optimization::Simd);
+                opts.disable(Optimization::Scanners); // TODO
+                opts.disable(Optimization::Simd); // Unsupported with the interpreter
 
                 let actions = parse(&fs::read_to_string(file)?);
 
@@ -170,8 +172,10 @@ impl Commands {
                 output,
                 target,
                 object,
-                opts,
+                mut opts,
             } => {
+                opts.disable(Optimization::Scanners); // TODO
+
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = Optimizer::new(&opts, actions)

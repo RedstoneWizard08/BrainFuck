@@ -1,4 +1,4 @@
-use crate::opt::{OptAction, Optimizer};
+use crate::opt::{OptAction, Optimizer, ValueAction};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn simd_add(&mut self) {
@@ -52,5 +52,68 @@ impl<'a> Optimizer<'a> {
         if !buf.is_empty() {
             self.actions.push(OptAction::SimdAddMove(buf, pos));
         }
+
+        self.simd_add_2();
+    }
+
+    pub(super) fn simd_add_2(&mut self) {
+        let mut actions = Vec::new();
+
+        std::mem::swap(&mut actions, &mut self.actions);
+
+        let mut cur = Vec::new();
+        let mut last = None;
+
+        for action in actions {
+            if let OptAction::OffsetValue(ValueAction::AddValue(a), o) = action {
+                let needs_new = last.is_none_or(|it| it + 1 != o);
+
+                if needs_new {
+                    self.simd_add_finish_seq(&mut cur);
+                }
+
+                cur.push((a, o));
+                last = Some(o);
+            } else {
+                self.simd_add_finish_seq(&mut cur);
+                last = None;
+                self.actions.push(action);
+            }
+        }
+
+        self.simd_add_finish_seq(&mut cur);
+    }
+
+    fn simd_add_finish_seq(&mut self, cur: &mut Vec<(i64, i64)>) {
+        if cur.is_empty() {
+            return;
+        }
+
+        cur.sort_unstable();
+
+        let first = cur[0];
+        let is_needed = cur.len() > 16;
+
+        if is_needed {
+            self.actions.push(OptAction::MovePtr(first.1));
+
+            // Do it this way (with the move and then move back) because otherwise it might
+            // throw off expected positions, since we don't check for the move afterward.
+            let len = cur.len() as i64;
+
+            self.actions.push(OptAction::SimdAddMove(
+                cur.iter().map(|it| it.0 as i8).collect(),
+                len,
+            ));
+
+            self.actions.push(OptAction::MovePtr(-first.1 - len));
+        } else {
+            self.actions.extend(
+                cur.iter()
+                    .map(|it| OptAction::OffsetValue(ValueAction::AddValue(it.0), it.1)),
+            );
+        }
+
+        cur.clear();
     }
 }
