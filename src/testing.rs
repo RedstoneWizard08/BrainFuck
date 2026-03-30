@@ -48,7 +48,10 @@ impl BufTestingIo {
     }
 
     pub fn load_stdin(&self, input: Vec<u8>) {
-        unsafe { STDIN.extend(input) };
+        unsafe {
+            STDIN.extend(input);
+            STDIN.push(0);
+        };
     }
 
     pub fn finish(self) -> Vec<u8> {

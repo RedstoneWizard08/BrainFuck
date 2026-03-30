@@ -47,6 +47,7 @@ impl<'a> CodeGenerator<'a> {
             let size = part.len();
 
             if size == 1 {
+                self.add(self.ptr.ptr(), arr[0]);
             } else {
                 let reg = match size {
                     16 => SimdReg::Xmm0,

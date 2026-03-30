@@ -191,7 +191,11 @@ impl<'a> Optimizer<'a> {
 
                 std::mem::swap(&mut out, lp);
 
-                let mut opt = Optimizer { opts, actions: out };
+                let mut opt = Optimizer {
+                    opts,
+                    actions: out,
+                    depth: self.depth + 1,
+                };
 
                 opt.offsets();
 

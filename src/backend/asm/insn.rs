@@ -339,6 +339,8 @@ insns! {
     Add(target: Data, src: Data),
     Imul(target: Data, src: Data, mul: Data),
     Cmp(a: Data, b: Data),
+    Xor(a: Data, b: Data),
+    Inc(reg: Data),
     Je(label: String),
     Jne(label: String),
     Jmp(label: String),
@@ -346,6 +348,7 @@ insns! {
     Section(name: &'static str),
     Resb(name: &'static str, size: i64),
     Global(label: &'static str),
+    ScanByte,
     Syscall,
 
     // SIMD
@@ -415,11 +418,23 @@ impl Insn {
                 c.stringify(arch)
             ),
 
+            Insn::Inc(reg) => format!("inc {}", reg.stringify(arch)),
+
             Insn::Cmp(a, b) => {
                 let (p0, p1) = prefixes(a, b);
 
                 format!(
                     "{PRE}cmp {p0}{}, {p1}{}",
+                    a.stringify(arch),
+                    b.stringify(arch)
+                )
+            }
+
+            Insn::Xor(a, b) => {
+                let (p0, p1) = prefixes(a, b);
+
+                format!(
+                    "{PRE}xor {p0}{}, {p1}{}",
                     a.stringify(arch),
                     b.stringify(arch)
                 )
@@ -440,7 +455,7 @@ impl Insn {
 
             Insn::Resb(name, size) => {
                 if GNU_ASM {
-                    format!("{PRE}.lcomm {name} {size}")
+                    format!("{PRE}.lcomm {name}, {size}")
                 } else {
                     format!("{PRE}{name}: resb {size}")
                 }
@@ -455,6 +470,7 @@ impl Insn {
             }
 
             Insn::Syscall => format!("{PRE}syscall"),
+            Insn::ScanByte => format!("{PRE}repne scasb"),
 
             Insn::Vpbroadcastb(target, src) => {
                 format!(

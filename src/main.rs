@@ -3,8 +3,7 @@ use bf::cli::Cli;
 use clap::Parser;
 
 pub fn main() -> Result<()> {
-    pretty_env_logger::init();
-    Cli::parse().command.run()?;
+    Cli::parse().run()?;
 
     Ok(())
 }

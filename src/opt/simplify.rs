@@ -8,7 +8,9 @@ impl<'a> Optimizer<'a> {
 
         for action in actions {
             match action {
-                OptAction::Value(ValueAction::AddValue(0)) | OptAction::MovePtr(0) | OptAction::Noop => (),
+                OptAction::Value(ValueAction::AddValue(0))
+                | OptAction::MovePtr(0)
+                | OptAction::Noop => (),
 
                 OptAction::Loop(it) => {
                     let mut opt = self.sub(it);

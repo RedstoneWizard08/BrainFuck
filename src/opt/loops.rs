@@ -19,8 +19,11 @@ impl<'a> Optimizer<'a> {
 
                     if it.len() == 0 {
                         continue;
-                    } else if it.len() == 1 && matches!(it[0], OptAction::Value(ValueAction::AddValue(_))) {
-                        self.actions.push(OptAction::Value(ValueAction::SetValue(0)));
+                    } else if it.len() == 1
+                        && matches!(it[0], OptAction::Value(ValueAction::AddValue(_)))
+                    {
+                        self.actions
+                            .push(OptAction::Value(ValueAction::SetValue(0)));
                     } else {
                         let mut opt = self.sub(it);
 

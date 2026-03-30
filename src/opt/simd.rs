@@ -89,10 +89,10 @@ impl<'a> Optimizer<'a> {
             return;
         }
 
-        cur.sort_unstable();
+        cur.sort_unstable_by_key(|it| it.1);
 
         let first = cur[0];
-        let is_needed = cur.len() > 16;
+        let is_needed = cur.len() >= 16;
 
         if is_needed {
             self.actions.push(OptAction::MovePtr(first.1));

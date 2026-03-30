@@ -40,8 +40,12 @@ pub struct CompilerOptions {
     /// The size of the tape.
     ///
     /// For performance reasons, the interpreter ignores this option.
-    #[cfg_attr(feature = "cli", arg(short = 'T', long, default_value_t = u16::MAX as usize))]
+    #[cfg_attr(feature = "cli", arg(short = 'T', long, default_value_t = 65536))]
     pub tape_size: usize,
+
+    /// Disable I/O operations. Useful for benchmarking and profiling.
+    #[cfg_attr(feature = "cli", arg(short = 'N', long))]
+    pub no_io: bool,
 }
 
 #[derive(
@@ -86,6 +90,11 @@ pub enum Optimization {
     ///
     /// **Note:** Requires unsafe mode.
     Simd,
+
+    /// Simplify Set-Then-Add operations.
+    ///
+    /// Some cases of this cannot be detected by [`Self::Chain`].
+    SetAdd,
 }
 
 /// A trait for implementing custom I/O for use with the JIT compiler.

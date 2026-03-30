@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{WarnLevel, Verbosity};
 use std::{fs, path::PathBuf};
 
 #[cfg(feature = "cranelift")]
@@ -17,8 +18,23 @@ use crate::link;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
+    /// `log` verbosity options.
+    #[command(flatten)]
+    pub verbosity: Verbosity<WarnLevel>,
+
+    /// The command to run.
     #[command(subcommand)]
     pub command: Commands,
+}
+
+impl Cli {
+    pub fn run(self) -> Result<()> {
+        pretty_env_logger::formatted_builder()
+            .filter_level(self.verbosity.log_level_filter())
+            .init();
+
+        self.command.run()
+    }
 }
 
 #[derive(Subcommand, Debug)]

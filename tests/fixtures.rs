@@ -12,9 +12,9 @@ use std::{fs, path::PathBuf};
 macro_rules! test_dir {
     ($name: ident = $dir: expr) => {
         #[dir_test(
-            dir: $dir,
-            glob: "*.b",
-        )]
+                    dir: $dir,
+                    glob: "*.b",
+                )]
         fn $name(fixture: Fixture<&str>) {
             let opts = CompilerOptions::default();
 
@@ -26,7 +26,6 @@ macro_rules! test_dir {
             let output = fs::read(output).ok();
 
             let program = parse(fixture.content());
-
             let program = Optimizer::new(&opts, program).run_all().finish();
 
             let io = BufTestingIo::new();

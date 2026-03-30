@@ -35,6 +35,7 @@ required-features = ["cli"]
 [dependencies]
 anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"], optional = true }
+clap-verbosity-flag = { version = "3.0.4", default-features = false, features = ["log"] }
 cranelift = { version = "0.129.1", optional = true }
 cranelift-codegen = { version = "0.129.1", optional = true, features = ["capstone", "core", "disas", "isle-errors", "x86"] }
 cranelift-jit = { version = "0.129.1", optional = true }

@@ -41,6 +41,8 @@ pub struct CodeGenerator<'a> {
     block: usize,
     data: usize,
     rodata: Vec<Rodata>,
+    known_nonzero: bool,
+    known_zero: bool,
 }
 
 impl<'a> CodeGenerator<'a> {
@@ -53,6 +55,8 @@ impl<'a> CodeGenerator<'a> {
             block: 0,
             data: 0,
             rodata: Vec::new(),
+            known_nonzero: false,
+            known_zero: false,
         };
 
         let arch = TargetArch::X86_64; // TODO: Options
@@ -115,8 +119,19 @@ impl<'a> CodeGenerator<'a> {
                 ValueAction::Output => self.print_slot(),
                 ValueAction::Input => self.input_slot(),
                 ValueAction::AddValue(v) => self.add_slot(*v),
-                ValueAction::SetValue(v) => self.set_slot(*v),
                 ValueAction::BulkPrint(n) => self.bulk_print(*n),
+
+                ValueAction::SetValue(v) => {
+                    if *v == 0 {
+                        self.known_zero = true;
+                        self.known_nonzero = false;
+                    } else {
+                        self.known_zero = false;
+                        self.known_nonzero = true;
+                    }
+
+                    self.set_slot(*v)
+                }
             },
 
             OptAction::OffsetValue(it, offset) => match it {
@@ -134,6 +149,15 @@ impl<'a> CodeGenerator<'a> {
             OptAction::SimdAddMove(a, o) => self.simd_add_arr_move(a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
             OptAction::Scan(s) => self.scan(*s),
+        };
+
+        match insn {
+            OptAction::Value(ValueAction::SetValue(_)) => {}
+
+            _ => {
+                self.known_zero = false;
+                self.known_nonzero = false;
+            }
         }
     }
 }

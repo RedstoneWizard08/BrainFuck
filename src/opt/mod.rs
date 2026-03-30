@@ -4,6 +4,7 @@ mod dead_code;
 mod loops;
 mod offsets;
 mod scan;
+mod set_add;
 mod set_move;
 mod simd;
 mod simplify;
@@ -127,6 +128,14 @@ impl OptAction {
             _ => false,
         }
     }
+
+    #[inline(always)]
+    pub fn count(&self) -> usize {
+        match self {
+            Self::Loop(it) => it.iter().map(|it| it.count()).sum::<usize>() + 1,
+            _ => 1,
+        }
+    }
 }
 
 pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
@@ -147,6 +156,7 @@ pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
 pub struct Optimizer<'a> {
     actions: Vec<OptAction>,
     opts: &'a CompilerOptions,
+    depth: usize,
 }
 
 impl<'a> Optimizer<'a> {
@@ -154,6 +164,7 @@ impl<'a> Optimizer<'a> {
         Self {
             actions: convert(actions),
             opts,
+            depth: 0,
         }
     }
 
@@ -161,6 +172,7 @@ impl<'a> Optimizer<'a> {
         Optimizer {
             actions,
             opts: self.opts,
+            depth: self.depth + 1,
         }
     }
 
@@ -169,11 +181,15 @@ impl<'a> Optimizer<'a> {
             return;
         }
 
-        let now = Instant::now();
+        let pre = "    ".repeat(self.depth);
+        let pre_count = self.actions.len();
 
-        debug!("-----------------------------------------------");
-        debug!("Starting optimization pass: {opt}");
-        debug!("Instruction count (depth=1): {}", self.actions.len());
+        debug!("{pre}-----------------------------------------------");
+        debug!("{pre}Starting optimization pass: {opt}");
+        debug!("{pre}Instruction count (depth=1): {}", self.actions.len());
+        debug!("{pre}-----------------------------------------------");
+
+        let now = Instant::now();
 
         match opt {
             Optimization::Chain => self.chains(),
@@ -187,12 +203,37 @@ impl<'a> Optimizer<'a> {
             Optimization::UselessEnd => self.useless_end(),
             Optimization::Offsets => self.offsets(),
             Optimization::Scanners => self.scanners(),
+            Optimization::SetAdd => self.set_add(),
         };
 
-        debug!("Completed optimization pass: {opt}");
-        debug!("Took {} μs", now.elapsed().as_micros());
-        debug!("Instruction count (depth=1): {}", self.actions.len());
-        debug!("-----------------------------------------------");
+        let time = now.elapsed().as_micros();
+        let count = self.actions.len();
+        let change = count as isize - pre_count as isize;
+
+        debug!("{pre}-----------------------------------------------");
+        debug!("{pre}Completed optimization pass: {opt}");
+        debug!("{pre}Took {time} μs");
+        debug!("{pre}Instruction count (depth=1): {count}");
+        debug!("{pre}Count change: {pre_count} -> {count}: {change}");
+        debug!("{pre}-----------------------------------------------");
+    }
+
+    fn optimize_loops(&mut self, id: Optimization) {
+        let mut actions = Vec::new();
+
+        std::mem::swap(&mut self.actions, &mut actions);
+
+        for action in actions {
+            if let OptAction::Loop(it) = action {
+                let mut opt = self.sub(it);
+
+                opt.run(id);
+
+                self.actions.push(OptAction::Loop(opt.finish()));
+            } else {
+                self.actions.push(action);
+            }
+        }
     }
 
     pub fn run_all(mut self) -> Self {
@@ -201,14 +242,19 @@ impl<'a> Optimizer<'a> {
             self.run(Optimization::Loop);
             self.run(Optimization::UselessOps);
             self.run(Optimization::DeadCode);
+            self.run(Optimization::CopyLoop);
             self.run(Optimization::Offsets);
             self.run(Optimization::Simd);
             self.run(Optimization::SetMove);
-            self.run(Optimization::CopyLoop);
             self.run(Optimization::Scanners);
             self.run(Optimization::Simplify);
             self.run(Optimization::UselessEnd);
+            self.run(Optimization::SetAdd);
         }
+
+        let insns = self.actions.iter().map(|it| it.count()).sum::<usize>();
+
+        debug!("Instruction count: {insns}");
 
         self
     }

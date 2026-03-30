@@ -24,7 +24,8 @@ impl<'a> Optimizer<'a> {
                     if v.len() != 0 {
                         self.actions.push(OptAction::CopyLoop(v));
                     } else {
-                        self.actions.push(OptAction::Value(ValueAction::SetValue(0)));
+                        self.actions
+                            .push(OptAction::Value(ValueAction::SetValue(0)));
                     }
                 } else if let OptAction::Loop(v) = action {
                     let mut opt = self.sub(v);

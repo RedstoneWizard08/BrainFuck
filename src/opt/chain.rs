@@ -1,4 +1,7 @@
-use crate::opt::{ChainType, OptAction, Optimizer};
+use crate::{
+    backend::Optimization,
+    opt::{ChainType, Optimizer},
+};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn chains(&mut self) {
@@ -24,20 +27,14 @@ impl<'a> Optimizer<'a> {
                     chain = None;
                 }
 
-                if let OptAction::Loop(it) = action {
-                    let mut opt = self.sub(it);
-
-                    opt.chains();
-
-                    self.actions.push(OptAction::Loop(opt.finish()));
-                } else {
-                    self.actions.push(action);
-                }
+                self.actions.push(action);
             }
         }
 
         if let Some(cur) = chain {
             self.actions.push(cur.action());
         }
+
+        self.optimize_loops(Optimization::Chain);
     }
 }

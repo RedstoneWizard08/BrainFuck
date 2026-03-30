@@ -130,6 +130,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "clap-verbosity-flag",
  "cranelift",
  "cranelift-codegen",
  "cranelift-jit",
@@ -308,6 +309,16 @@ checksum = "b193af5b67834b676abd72466a96c1024e6a6ad978a1f484bd90b85c94041351"
 dependencies = [
  "clap_builder",
  "clap_derive",
+]
+
+[[package]]
+name = "clap-verbosity-flag"
+version = "3.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d92b1fab272fe943881b77cc6e920d6543e5b1bfadbd5ed81c7c5a755742394"
+dependencies = [
+ "clap",
+ "log",
 ]
 
 [[package]]
