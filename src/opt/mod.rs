@@ -1,6 +1,7 @@
 mod chain;
 mod copy_loop;
 mod dead_code;
+mod loop_unroll;
 mod loops;
 mod offsets;
 mod scan;
@@ -19,7 +20,7 @@ use anyhow::Result;
 use log::debug;
 use ron::{Options, Serializer, ser::PrettyConfig};
 use serde::Serialize;
-use std::{collections::BTreeMap, fs, time::Instant};
+use std::{fs, time::Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ValueAction {
@@ -38,7 +39,7 @@ pub enum OptAction {
     MovePtr(i64),
     SetAndMove(i64, i64),
     AddAndMove(i64, i64),
-    CopyLoop(BTreeMap<i64, i64>),
+    CopyLoop(Vec<(i64, i64)>),
     SimdAddMove(Vec<i8>, i64),
     Loop(Vec<OptAction>),
 
@@ -61,7 +62,14 @@ impl ChainType {
             Self::Add(value) => OptAction::Value(ValueAction::AddValue(*value)),
             Self::Set(value) => OptAction::Value(ValueAction::SetValue(*value)),
             Self::Move(value) => OptAction::MovePtr(*value),
-            Self::Print(value) => OptAction::Value(ValueAction::BulkPrint(*value)),
+
+            Self::Print(value) => {
+                if *value == 1 {
+                    OptAction::Value(ValueAction::Output)
+                } else {
+                    OptAction::Value(ValueAction::BulkPrint(*value))
+                }
+            }
         }
     }
 
@@ -138,7 +146,7 @@ impl OptAction {
     }
 }
 
-pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
+pub fn convert<'a>(actions: Vec<Action>) -> Vec<OptAction> {
     actions
         .into_iter()
         .map(|it| match it {
@@ -198,12 +206,14 @@ impl<'a> Optimizer<'a> {
             Optimization::DeadCode => self.dead_code(),
             Optimization::SetMove => self.set_move(),
             Optimization::Simplify => self.simplify(),
+            Optimization::SimplifyStart => self.simplify_start(),
             Optimization::CopyLoop => self.copy_loop(),
             Optimization::Simd => self.simd_add(),
             Optimization::UselessEnd => self.useless_end(),
             Optimization::Offsets => self.offsets(),
             Optimization::Scanners => self.scanners(),
             Optimization::SetAdd => self.set_add(),
+            Optimization::LoopUnroll => self.loop_unroll(),
         };
 
         let time = now.elapsed().as_micros();
@@ -236,20 +246,34 @@ impl<'a> Optimizer<'a> {
         }
     }
 
+    fn run_pass(&mut self) {
+        self.run(Optimization::Chain);
+        self.run(Optimization::Loop);
+        self.run(Optimization::UselessOps);
+        
+        if self.depth == 0 {
+            self.run(Optimization::DeadCode);
+        }
+
+        self.run(Optimization::CopyLoop);
+        self.run(Optimization::Offsets);
+        self.run(Optimization::Simd);
+        self.run(Optimization::SetMove);
+        self.run(Optimization::Scanners);
+        self.run(Optimization::Simplify);
+        self.run(Optimization::SimplifyStart);
+        
+        if self.depth == 0 {
+            self.run(Optimization::UselessEnd);
+        }
+
+        self.run(Optimization::SetAdd);
+        self.run(Optimization::LoopUnroll);
+    }
+
     pub fn run_all(mut self) -> Self {
         for _ in 0..self.opts.opt_level {
-            self.run(Optimization::Chain);
-            self.run(Optimization::Loop);
-            self.run(Optimization::UselessOps);
-            self.run(Optimization::DeadCode);
-            self.run(Optimization::CopyLoop);
-            self.run(Optimization::Offsets);
-            self.run(Optimization::Simd);
-            self.run(Optimization::SetMove);
-            self.run(Optimization::Scanners);
-            self.run(Optimization::Simplify);
-            self.run(Optimization::UselessEnd);
-            self.run(Optimization::SetAdd);
+            self.run_pass();
         }
 
         let insns = self.actions.iter().map(|it| it.count()).sum::<usize>();

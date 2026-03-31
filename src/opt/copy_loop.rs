@@ -65,7 +65,8 @@ impl<'a> Optimizer<'a> {
             return false;
         }
 
-        self.actions.push(OptAction::CopyLoop(changes));
+        self.actions
+            .push(OptAction::CopyLoop(changes.into_iter().collect()));
 
         true
     }

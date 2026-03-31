@@ -40,6 +40,19 @@ impl<'a> Optimizer<'a> {
                     }
                 }
 
+                [
+                    OptAction::OffsetValue(ValueAction::SetValue(set), o1),
+                    OptAction::MovePtr(o2),
+                ] => {
+                    if o1 == o2 {
+                        self.actions.push(OptAction::MovePtr(o1));
+                        self.actions
+                            .push(OptAction::Value(ValueAction::SetValue(set)));
+
+                        buf = [OptAction::Noop, OptAction::Noop];
+                    }
+                }
+
                 _ => {}
             }
         }

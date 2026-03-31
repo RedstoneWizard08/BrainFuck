@@ -70,6 +70,9 @@ pub enum Optimization {
     /// Simplify redundant code, and remove add/move zero operations.
     Simplify,
 
+    /// Simplify starting value instructions to be set instead of add.
+    SimplifyStart,
+
     /// Remove instructions at the end that don't affect the final output.
     UselessEnd,
 
@@ -95,6 +98,9 @@ pub enum Optimization {
     ///
     /// Some cases of this cannot be detected by [`Self::Chain`].
     SetAdd,
+
+    /// Loop unrolling.
+    LoopUnroll,
 }
 
 /// A trait for implementing custom I/O for use with the JIT compiler.

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "cranelift", "asm", "wasm", "web"]
+default = ["cli", "testing", "asm"]
 
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]
@@ -23,6 +23,9 @@ wasm = ["dep:wasm-encoder", "dep:wasmparser"]
 
 # Support the raw ASM backend.
 asm = []
+
+# Support the interpreter.
+interp = []
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -71,6 +74,7 @@ paste = "1.0.15"
 name = "interpret"
 path = "benches/interpret.rs"
 harness = false
+required-features = ["interp"]
 
 [[bench]]
 name = "parse"

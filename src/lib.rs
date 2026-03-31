@@ -1,6 +1,8 @@
 pub mod backend;
-pub mod interp;
 pub mod opt;
+
+#[cfg(feature = "interp")]
+pub mod interp;
 
 #[cfg(feature = "web")]
 pub mod wasm;

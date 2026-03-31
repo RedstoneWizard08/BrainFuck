@@ -1,12 +1,7 @@
-use crate::{
-    backend::{CompilerOptions, Optimization},
-    interp::interpret,
-    opt::Optimizer,
-    parse,
-};
+use crate::{backend::CompilerOptions, opt::Optimizer, parse};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use clap_verbosity_flag::{WarnLevel, Verbosity};
+use clap_verbosity_flag::{Verbosity, WarnLevel};
 use std::{fs, path::PathBuf};
 
 #[cfg(feature = "cranelift")]
@@ -86,6 +81,7 @@ pub enum Commands {
     /// Run a BrainFuck program using the interpreter.
     #[command(name = "interpret")]
     #[clap(aliases = &["i"])]
+    #[cfg(feature = "interp")]
     Interpret {
         /// The path to the file to run.
         file: PathBuf,
@@ -169,9 +165,10 @@ impl Commands {
                 )?;
             }
 
+            #[cfg(feature = "interp")]
             Self::Interpret { file, mut opts } => {
-                opts.disable(Optimization::Scanners); // TODO
-                opts.disable(Optimization::Simd); // Unsupported with the interpreter
+                opts.disable(crate::backend::Optimization::Scanners); // TODO
+                opts.disable(crate::backend::Optimization::Simd); // Unsupported with the interpreter
 
                 let actions = parse(&fs::read_to_string(file)?);
 
@@ -179,7 +176,7 @@ impl Commands {
                     .run_all()
                     .finish_with_write()?;
 
-                interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
+                crate::interp::interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
             }
 
             #[cfg(feature = "cranelift")]

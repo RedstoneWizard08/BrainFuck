@@ -1,12 +1,10 @@
-use std::collections::BTreeMap;
-
 use crate::backend::asm::{
     CodeGenerator,
     insn::{AsmBuilder, Reg},
 };
 
 impl<'a> CodeGenerator<'a> {
-    pub(super) fn copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
+    pub(super) fn copy_loop(&mut self, values: &Vec<(i64, i64)>) {
         self.mov(Reg::Eax, self.ptr.ptr());
 
         for (offset, mul) in values {
