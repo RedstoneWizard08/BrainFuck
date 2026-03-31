@@ -1,16 +1,34 @@
+pub mod arena;
+pub mod base;
+pub mod v2;
+
 mod chain;
+mod combos;
 mod copy_loop;
 mod dead_code;
 mod loop_unroll;
 mod loops;
 mod offsets;
 mod scan;
-mod set_add;
 mod set_move;
 mod simd;
 mod simplify;
 mod useless_end;
 mod useless_ops;
+
+mod chain_v2;
+mod combos_v2;
+mod copy_loop_v2;
+mod dead_code_v2;
+mod loops_v2;
+mod offset_v2;
+mod scan_v2;
+mod set_move_v2;
+mod simd_v2;
+mod simplify_v2;
+mod sort_offset_v2;
+mod useless_end_v2;
+mod useless_ops_v2;
 
 use crate::{
     Action,
@@ -146,7 +164,7 @@ impl OptAction {
     }
 }
 
-pub fn convert<'a>(actions: Vec<Action>) -> Vec<OptAction> {
+pub fn convert(actions: Vec<Action>) -> Vec<OptAction> {
     actions
         .into_iter()
         .map(|it| match it {
@@ -250,7 +268,7 @@ impl<'a> Optimizer<'a> {
         self.run(Optimization::Chain);
         self.run(Optimization::Loop);
         self.run(Optimization::UselessOps);
-        
+
         if self.depth == 0 {
             self.run(Optimization::DeadCode);
         }
@@ -262,7 +280,7 @@ impl<'a> Optimizer<'a> {
         self.run(Optimization::Scanners);
         self.run(Optimization::Simplify);
         self.run(Optimization::SimplifyStart);
-        
+
         if self.depth == 0 {
             self.run(Optimization::UselessEnd);
         }

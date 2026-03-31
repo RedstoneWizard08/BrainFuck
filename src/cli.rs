@@ -1,4 +1,4 @@
-use crate::{backend::CompilerOptions, opt::Optimizer, parse};
+use crate::{backend::CompilerOptions, parse};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
@@ -124,7 +124,7 @@ impl Commands {
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = Optimizer::new(&opts, actions)
+                let actions = crate::opt::Optimizer::new(&opts, actions)
                     .run_all()
                     .finish_with_write()?;
 
@@ -141,7 +141,7 @@ impl Commands {
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = Optimizer::new(&opts, actions)
+                let actions = crate::opt::Optimizer::new(&opts, actions)
                     .run_all()
                     .finish_with_write()?;
 
@@ -155,9 +155,11 @@ impl Commands {
             Self::Asm { file, output, opts } => {
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = Optimizer::new(&opts, actions)
-                    .run_all()
-                    .finish_with_write()?;
+                // let actions = crate::opt::Optimizer::new(&opts, actions)
+                //     .run_all()
+                //     .finish_with_write()?;
+
+                let actions = crate::opt::v2::optimize_v2(&actions, &opts);
 
                 fs::write(
                     output,
@@ -172,7 +174,7 @@ impl Commands {
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = Optimizer::new(&opts, actions)
+                let actions = crate::opt::Optimizer::new(&opts, actions)
                     .run_all()
                     .finish_with_write()?;
 
@@ -191,7 +193,7 @@ impl Commands {
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = Optimizer::new(&opts, actions)
+                let actions = crate::opt::Optimizer::new(&opts, actions)
                     .run_all()
                     .finish_with_write()?;
 
