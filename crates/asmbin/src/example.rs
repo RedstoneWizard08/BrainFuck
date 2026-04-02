@@ -10,7 +10,7 @@ use object::{
     build::elf::{Builder, SectionData},
     elf::{
         EM_X86_64, ET_EXEC, PF_R, PF_X, PT_LOAD, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SHT_PROGBITS,
-        SHT_STRTAB, SHT_SYMTAB, STB_GLOBAL, STT_NOTYPE,
+        SHT_STRTAB,
     },
     write::{Object, Relocation, StandardSection, Symbol, SymbolSection},
 };
@@ -113,7 +113,7 @@ pub fn hello_world_no_reloc() -> Result<()> {
     buf.extend(SyscallInsn.encode());
 
     obj.header.e_type = ET_EXEC;
-    obj.header.e_phoff = 0x40;
+    obj.header.e_phoff = obj.class().file_header_size() as u64;
     obj.header.e_machine = EM_X86_64;
     obj.header.e_entry = text_addr;
 
@@ -141,33 +141,12 @@ pub fn hello_world_no_reloc() -> Result<()> {
 
     let data_id = data.id();
 
-    let symtab = obj.sections.add();
-
-    symtab.name = b".symtab"[..].into();
-    symtab.sh_type = SHT_SYMTAB;
-    symtab.data = SectionData::Symbol;
-    symtab.sh_addralign = 8;
-
-    let strtab = obj.sections.add();
-
-    strtab.name = b".strtab"[..].into();
-    strtab.sh_type = SHT_STRTAB;
-    strtab.data = SectionData::String;
-    strtab.sh_addralign = 1;
-
     let shstrtab = obj.sections.add();
 
     shstrtab.name = b".shstrtab"[..].into();
     shstrtab.sh_type = SHT_STRTAB;
     shstrtab.data = SectionData::SectionString;
     shstrtab.sh_addralign = 1;
-
-    let sym = obj.symbols.add();
-
-    sym.name = b"_start"[..].into();
-    sym.set_st_info(STB_GLOBAL, STT_NOTYPE);
-    sym.section = Some(text_id);
-    sym.st_value = text_addr;
 
     obj.set_section_sizes();
 

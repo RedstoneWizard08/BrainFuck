@@ -34,6 +34,7 @@ impl<'a> CodeGenerator<'a> {
 
         if !self.opts.no_io {
             for _ in 0..n {
+                self.mov(Reg::Eax, 1); // op = sys_write
                 self.syscall();
             }
         }
@@ -47,6 +48,7 @@ impl<'a> CodeGenerator<'a> {
 
         if !self.opts.no_io {
             for _ in 0..n {
+                self.mov(Reg::Eax, 1); // op = sys_write
                 self.syscall();
             }
         }
