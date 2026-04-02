@@ -1,0 +1,10 @@
+[package]
+name = "asmbin-macros"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+asmbin-macros-impl = { version = "0.1.0", path = "../asmbin-macros-impl" }

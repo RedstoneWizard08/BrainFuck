@@ -106,3 +106,7 @@ required-features = ["cranelift"]
 
 [profile.bench]
 debug = true
+
+[workspace]
+resolver = "3"
+members = ["./crates/*"]

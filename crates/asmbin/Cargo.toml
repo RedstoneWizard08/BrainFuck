@@ -1,0 +1,9 @@
+[package]
+name = "asmbin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.102"
+asmbin-macros = { version = "0.1.0", path = "../asmbin-macros" }
+object = { version = "0.39.0", features = ["build", "write"] }
