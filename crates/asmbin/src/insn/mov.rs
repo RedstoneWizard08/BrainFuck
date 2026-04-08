@@ -11,15 +11,16 @@ pub enum MovInsn {
 }
 
 impl MovInsn {
-    pub fn opcode(&self) -> u8 {
+    pub const fn opcode(&self) -> u8 {
         match self {
             MovInsn::DataToReg(data, reg) => match data {
-                RegDataRef::Direct(_) => 0x8B, // TODO: 8-bit might need 0x8A
+                RegDataRef::Direct(_) | RegDataRef::DirectValue(_) => 0x8B, // TODO: 8-bit might need 0x8A
                 RegDataRef::RegOffset8(_, _) => 0x8B,
                 RegDataRef::RegOffset32(_, _) => 0x8B,
                 RegDataRef::Value8(_) => 0xC6,
                 RegDataRef::Value16(_) => 0xC7,
                 RegDataRef::Value32(_) => 0xC7,
+
                 RegDataRef::Value64(_) => {
                     if reg.is_ext() {
                         panic!("movabs doesn't work for extended registers!")
@@ -46,15 +47,16 @@ impl MovInsn {
 impl const InsnInfo for MovInsn {
     fn predict_size(&self) -> usize {
         match self {
-            MovInsn::DataToReg(b, _) => {
-                if matches!(b, RegDataRef::Value64(_)) {
-                    b.added_bytes() + 2
-                } else {
-                    b.added_bytes() + 3
-                }
+            MovInsn::DataToReg(data, reg) => {
+                let rex = data.needs_rex() || reg.needs_rex();
+                let modrm = !matches!(data, RegDataRef::Value64(_));
+
+                data.added_bytes() + 1 + (modrm as usize) + (rex as usize)
             }
 
-            MovInsn::RegToData(_, b) => b.added_bytes() + 3,
+            MovInsn::RegToData(reg, data) => {
+                data.added_bytes() + 2 + ((reg.needs_rex() || data.needs_rex()) as usize)
+            }
         }
     }
 }
@@ -62,13 +64,13 @@ impl const InsnInfo for MovInsn {
 impl InsnEncode for MovInsn {
     fn encode(self) -> Vec<u8> {
         match self {
-            MovInsn::DataToReg(b, a) => {
-                let skip_modrm = matches!(b, RegDataRef::Value64(_));
+            MovInsn::DataToReg(data, reg) => {
+                let skip_modrm = matches!(data, RegDataRef::Value64(_));
 
-                encode_insn(self.opcode(), a, b, skip_modrm)
+                encode_insn(self.opcode(), reg, Some(data), skip_modrm)
             }
 
-            MovInsn::RegToData(a, b) => encode_insn(self.opcode(), a, b, false),
+            MovInsn::RegToData(reg, data) => encode_insn(self.opcode(), reg, Some(data), false),
         }
     }
 }

@@ -42,149 +42,6 @@ pub enum Reg {
     Spl,
 }
 
-macro_rules! regs {
-    {
-        enum $name: ident {
-            $($reg: ident),*
-            $(,)?
-        }
-    } => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $name {
-            $($reg),*
-        }
-
-        impl $name {
-            pub fn name(&self) -> &'static str {
-                match self {
-                    $(
-                        Self::$reg => paste::paste! { stringify!([<$reg:lower>]) }
-                    ),*
-                }
-            }
-        }
-    };
-}
-
-regs! {
-    enum SimdReg {
-        // AVX-512
-        Zmm0,
-        Zmm1,
-        Zmm2,
-        Zmm3,
-        Zmm4,
-        Zmm5,
-        Zmm6,
-        Zmm7,
-        Zmm8,
-        Zmm9,
-        Zmm10,
-        Zmm11,
-        Zmm12,
-        Zmm13,
-        Zmm14,
-        Zmm15,
-        Zmm16,
-        Zmm17,
-        Zmm18,
-        Zmm19,
-        Zmm20,
-        Zmm21,
-        Zmm22,
-        Zmm23,
-        Zmm24,
-        Zmm25,
-        Zmm26,
-        Zmm27,
-        Zmm28,
-        Zmm29,
-        Zmm30,
-        Zmm31,
-
-        // AVX-256
-        Ymm0,
-        Ymm1,
-        Ymm2,
-        Ymm3,
-        Ymm4,
-        Ymm5,
-        Ymm6,
-        Ymm7,
-        Ymm8,
-        Ymm9,
-        Ymm10,
-        Ymm11,
-        Ymm12,
-        Ymm13,
-        Ymm14,
-        Ymm15,
-        Ymm16,
-        Ymm17,
-        Ymm18,
-        Ymm19,
-        Ymm20,
-        Ymm21,
-        Ymm22,
-        Ymm23,
-        Ymm24,
-        Ymm25,
-        Ymm26,
-        Ymm27,
-        Ymm28,
-        Ymm29,
-        Ymm30,
-        Ymm31,
-
-        // AVX-128
-        Xmm0,
-        Xmm1,
-        Xmm2,
-        Xmm3,
-        Xmm4,
-        Xmm5,
-        Xmm6,
-        Xmm7,
-        Xmm8,
-        Xmm9,
-        Xmm10,
-        Xmm11,
-        Xmm12,
-        Xmm13,
-        Xmm14,
-        Xmm15,
-        Xmm16,
-        Xmm17,
-        Xmm18,
-        Xmm19,
-        Xmm20,
-        Xmm21,
-        Xmm22,
-        Xmm23,
-        Xmm24,
-        Xmm25,
-        Xmm26,
-        Xmm27,
-        Xmm28,
-        Xmm29,
-        Xmm30,
-        Xmm31,
-    }
-}
-
-regs! {
-    enum MaskReg {
-        K0,
-        K1,
-        K2,
-        K3,
-        K4,
-        K5,
-        K6,
-        K7,
-    }
-}
-
 impl Reg {
     pub fn name(&self, arch: TargetArch) -> &'static str {
         match arch {
@@ -244,13 +101,6 @@ pub enum Data {
     RegPtr2(Reg, Reg),
     RegPtrOffset(Reg, i64),
 
-    SimdReg(SimdReg),
-
-    /// (Data, Mask, Zero)
-    ///
-    /// Zero: zeroing modifier, will add `{z}`
-    Masked(Box<Data>, MaskReg, bool),
-
     RelLabel(String),
 }
 
@@ -271,15 +121,6 @@ impl Data {
                     format!("[{} + {offs}]", reg.name(arch))
                 }
             }
-
-            Data::SimdReg(reg) => format!("{}", reg.name()),
-
-            Data::Masked(d, m, z) => format!(
-                "{}{{{}}}{}",
-                d.stringify(arch),
-                m.name(),
-                if *z { "{z}" } else { "" }
-            ),
 
             Data::RelLabel(it) => format!("[rip + {it}]"),
         }
@@ -333,6 +174,13 @@ fn prefixes(a: &Data, b: &Data) -> (&'static str, &'static str) {
     }
 }
 
+fn prefix(a: &Data) -> &'static str {
+    match a {
+        Data::RegPtr(_) | Data::RegPtr2(_, _) | Data::RegPtrOffset(_, _) => "byte ptr ",
+        _ => "",
+    }
+}
+
 insns! {
     Mov(target: Data, src: Data),
     Lea(target: Data, src: Data),
@@ -340,7 +188,7 @@ insns! {
     Imul(target: Data, src: Data, mul: Data),
     Cmp(a: Data, b: Data),
     Xor(a: Data, b: Data),
-    Inc(reg: Data),
+    Inc(data: Data),
     Je(label: String),
     Jne(label: String),
     Jmp(label: String),
@@ -350,17 +198,6 @@ insns! {
     Global(label: &'static str),
     ScanByte,
     Syscall,
-
-    // SIMD
-    Vpbroadcastb(target: SimdReg, src: Data),
-    Vmovdqu8(target: Data, src: Data),
-    Vpaddb(target: SimdReg, src: SimdReg, add: Data),
-
-    // Masks
-    Kmovq(target: MaskReg, src: Data),
-
-    // Extra
-    P2Align(pow2: Data, max_skip: Data),
 }
 
 impl Insn {
@@ -418,7 +255,7 @@ impl Insn {
                 c.stringify(arch)
             ),
 
-            Insn::Inc(reg) => format!("inc {}", reg.stringify(arch)),
+            Insn::Inc(data) => format!("{PRE}inc {}{}", prefix(data), data.stringify(arch)),
 
             Insn::Cmp(a, b) => {
                 let (p0, p1) = prefixes(a, b);
@@ -471,43 +308,6 @@ impl Insn {
 
             Insn::Syscall => format!("{PRE}syscall"),
             Insn::ScanByte => format!("{PRE}repne scasb"),
-
-            Insn::Vpbroadcastb(target, src) => {
-                format!(
-                    "{PRE}vpbroadcastb {}, {}",
-                    target.name(),
-                    src.stringify(arch)
-                )
-            }
-
-            Insn::Vmovdqu8(target, src) => {
-                format!(
-                    "{PRE}vmovdqu8 {}, {}",
-                    target.stringify(arch),
-                    src.stringify(arch)
-                )
-            }
-
-            Insn::Vpaddb(target, src, add) => {
-                format!(
-                    "{PRE}vpaddb {}, {}, {}",
-                    target.name(),
-                    src.name(),
-                    add.stringify(arch)
-                )
-            }
-
-            Insn::Kmovq(target, src) => {
-                format!("{PRE}kmovq {}, {}", target.name(), src.stringify(arch))
-            }
-
-            Insn::P2Align(pow2, max_skip) => {
-                format!(
-                    ".p2align {},,{}",
-                    pow2.stringify(arch),
-                    max_skip.stringify(arch)
-                )
-            }
         }
     }
 }
@@ -539,11 +339,5 @@ impl Into<Data> for i8 {
 impl Into<Data> for Reg {
     fn into(self) -> Data {
         Data::Reg(self)
-    }
-}
-
-impl Into<Data> for SimdReg {
-    fn into(self) -> Data {
-        Data::SimdReg(self)
     }
 }

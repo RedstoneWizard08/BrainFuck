@@ -11,7 +11,6 @@ mod loops;
 mod offsets;
 mod scan;
 mod set_move;
-mod simd;
 mod simplify;
 mod useless_end;
 mod useless_ops;
@@ -24,7 +23,6 @@ mod loops_v2;
 mod offset_v2;
 mod scan_v2;
 mod set_move_v2;
-mod simd_v2;
 mod simplify_v2;
 mod sort_offset_v2;
 mod useless_end_v2;
@@ -58,7 +56,6 @@ pub enum OptAction {
     SetAndMove(i64, i64),
     AddAndMove(i64, i64),
     CopyLoop(Vec<(i64, i64)>),
-    SimdAddMove(Vec<i8>, i64),
     Loop(Vec<OptAction>),
 
     /// 0 = how many cells to skip while scanning
@@ -226,7 +223,6 @@ impl<'a> Optimizer<'a> {
             Optimization::Simplify => self.simplify(),
             Optimization::SimplifyStart => self.simplify_start(),
             Optimization::CopyLoop => self.copy_loop(),
-            Optimization::Simd => self.simd_add(),
             Optimization::UselessEnd => self.useless_end(),
             Optimization::Offsets => self.offsets(),
             Optimization::Scanners => self.scanners(),
@@ -275,7 +271,6 @@ impl<'a> Optimizer<'a> {
 
         self.run(Optimization::CopyLoop);
         self.run(Optimization::Offsets);
-        self.run(Optimization::Simd);
         self.run(Optimization::SetMove);
         self.run(Optimization::Scanners);
         self.run(Optimization::Simplify);

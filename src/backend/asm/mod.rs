@@ -3,7 +3,6 @@ mod insn;
 mod io;
 mod loops;
 mod ptr;
-mod simd;
 mod value;
 
 use crate::{
@@ -146,7 +145,6 @@ impl<'a> CodeGenerator<'a> {
             OptAction::MovePtr(v) => self.move_ptr(*v),
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
-            OptAction::SimdAddMove(a, o) => self.simd_add_arr_move(a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
             OptAction::Scan(s) => self.scan(*s),
         };

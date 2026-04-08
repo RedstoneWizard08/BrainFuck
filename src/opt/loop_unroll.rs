@@ -73,14 +73,6 @@ impl<'a> Optimizer<'a> {
                             pos += *mov;
                         }
 
-                        OptAction::SimdAddMove(add, mov) => {
-                            if pos == 0 {
-                                change += add[0] as i64;
-                            }
-
-                            pos += *mov;
-                        }
-
                         OptAction::Value(ValueAction::AddValue(add)) => {
                             if pos == 0 {
                                 change += *add;

@@ -170,7 +170,6 @@ impl Commands {
             #[cfg(feature = "interp")]
             Self::Interpret { file, mut opts } => {
                 opts.disable(crate::backend::Optimization::Scanners); // TODO
-                opts.disable(crate::backend::Optimization::Simd); // Unsupported with the interpreter
 
                 let actions = parse(&fs::read_to_string(file)?);
 

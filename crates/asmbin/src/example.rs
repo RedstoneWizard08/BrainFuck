@@ -1,6 +1,13 @@
 use crate::{
+    buf::InsnBuf,
     data::RegDataRef,
-    insn::{InsnEncode, mov::MovInsn, syscall::SyscallInsn},
+    insn::{
+        Insn, InsnEncode,
+        cmp::CmpInsn,
+        jmp::{JmpCond, JmpInsn},
+        mov::MovInsn,
+        syscall::SyscallInsn,
+    },
     reg::Reg,
 };
 use anyhow::Result;
@@ -9,8 +16,8 @@ use object::{
     SymbolFlags, SymbolKind, SymbolScope,
     build::elf::{Builder, SectionData},
     elf::{
-        EM_X86_64, ET_EXEC, PF_R, PF_X, PT_LOAD, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SHT_PROGBITS,
-        SHT_STRTAB,
+        EM_X86_64, ET_EXEC, PF_R, PF_W, PF_X, PT_LOAD, SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE,
+        SHT_NOBITS, SHT_PROGBITS, SHT_STRTAB,
     },
     write::{Object, Relocation, StandardSection, Symbol, SymbolSection},
 };
@@ -161,6 +168,242 @@ pub fn hello_world_no_reloc() -> Result<()> {
 
     data_seg.append_section(obj.sections.get_mut(data_id));
     data_seg.append_section(obj.sections.get_mut(text_id));
+
+    let mut data = Vec::new();
+
+    obj.write(&mut data)?;
+    fs::write("test.o", data)?;
+
+    Ok(())
+}
+
+pub fn echo_no_reloc() -> Result<()> {
+    let mut obj = Builder::new(Endianness::Little, true);
+
+    let bss_size = 1024_u64;
+
+    let header_size = obj.file_header_size() as u64 + 2 * obj.class().program_header_size() as u64;
+    let bss_offset = header_size;
+    let text_offset = (header_size + bss_size).next_multiple_of(0x1000);
+
+    let base_addr = 0x400000_u64;
+    let bss_addr = base_addr;
+    let text_addr = (bss_addr + bss_size).next_multiple_of(0x1000);
+
+    let mut buf = Vec::new();
+    let mut read = Vec::new();
+    let mut cmp = Vec::new();
+    let mut write = Vec::new();
+
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_size as u32), Reg::Rdx).encode());
+    read.extend(SyscallInsn.encode());
+
+    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rax), Reg::Rdi).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rdi), Reg::Rdx).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi).encode());
+    write.extend(SyscallInsn.encode());
+
+    cmp.extend(CmpInsn(Reg::Eax, RegDataRef::Value32(0)).encode());
+    cmp.extend(JmpInsn::Cond32(JmpCond::LessEqual, write.len() as u32).encode());
+
+    buf.extend(read);
+    buf.extend(cmp);
+    buf.extend(write);
+
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
+    buf.extend(SyscallInsn.encode());
+
+    obj.header.e_type = ET_EXEC;
+    obj.header.e_phoff = obj.class().file_header_size() as u64;
+    obj.header.e_machine = EM_X86_64;
+    obj.header.e_entry = text_addr;
+
+    let text = obj.sections.add();
+
+    text.name = b".text"[..].into();
+    text.sh_type = SHT_PROGBITS;
+    text.sh_flags = (SHF_ALLOC | SHF_EXECINSTR) as u64;
+    text.sh_addralign = 1;
+    text.sh_offset = text_offset;
+    text.sh_size = buf.len() as u64;
+    text.sh_addr = text_addr;
+    text.data = SectionData::Data(buf.clone().into());
+
+    let text_id = text.id();
+    let bss = obj.sections.add();
+
+    bss.name = b".bss"[..].into();
+    bss.sh_type = SHT_NOBITS;
+    bss.sh_flags = (SHF_ALLOC | SHF_WRITE) as u64;
+    bss.sh_addralign = 1;
+    bss.sh_offset = bss_offset;
+    bss.sh_size = bss_size;
+    bss.sh_addr = bss_addr;
+    bss.data = SectionData::UninitializedData(bss_size);
+
+    let bss_id = bss.id();
+    let shstrtab = obj.sections.add();
+
+    shstrtab.name = b".shstrtab"[..].into();
+    shstrtab.sh_type = SHT_STRTAB;
+    shstrtab.data = SectionData::SectionString;
+    shstrtab.sh_addralign = 1;
+
+    obj.set_section_sizes();
+
+    let bss_seg = obj.segments.add();
+
+    bss_seg.p_type = PT_LOAD;
+    bss_seg.p_flags = PF_R | PF_W;
+    bss_seg.p_vaddr = bss_addr;
+    bss_seg.p_paddr = bss_addr;
+    bss_seg.p_offset = bss_offset;
+    bss_seg.p_align = 16;
+    bss_seg.p_filesz = 0;
+    bss_seg.p_memsz = bss_size;
+
+    bss_seg.sections.push(bss_id);
+
+    let text_seg = obj.segments.add();
+
+    text_seg.p_type = PT_LOAD;
+    text_seg.p_flags = PF_R | PF_X;
+    text_seg.p_vaddr = text_addr;
+    text_seg.p_paddr = text_addr;
+    text_seg.p_offset = text_offset;
+    text_seg.p_align = 0x1000;
+
+    text_seg.append_section(obj.sections.get_mut(text_id));
+
+    let mut data = Vec::new();
+
+    obj.write(&mut data)?;
+    fs::write("test.o", data)?;
+
+    Ok(())
+}
+
+pub fn echo_no_reloc_compact() -> Result<()> {
+    let mut obj = Builder::new(Endianness::Little, true);
+
+    let bss_size = 1024_u64;
+
+    let mut buf = InsnBuf::new();
+    let mut read = InsnBuf::new();
+    let mut cmp = InsnBuf::new();
+    let mut write = InsnBuf::new();
+    let mut end = InsnBuf::new();
+
+    let bss_addr = 0;
+    let bss_len = bss_size as u32;
+
+    read.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax));
+    read.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi));
+    read.add(MovInsn::DataToReg(RegDataRef::Value32(bss_addr), Reg::Rsi));
+    read.add(MovInsn::DataToReg(RegDataRef::Value32(bss_len), Reg::Rdx));
+    read.add(SyscallInsn);
+
+    write.add(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rax), Reg::Rdi));
+    write.add(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax));
+    write.add(MovInsn::DataToReg(RegDataRef::Value32(bss_addr), Reg::Rsi));
+    write.add(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rdi), Reg::Rdx));
+    write.add(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi));
+    write.add(SyscallInsn);
+
+    let write_len = write.calculate_length();
+
+    cmp.add(CmpInsn(Reg::Eax, RegDataRef::Value32(0)));
+    cmp.add(JmpInsn::Cond32(JmpCond::LessEqual, write_len as u32));
+
+    end.add(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax));
+    end.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi));
+    end.add(SyscallInsn);
+
+    let total_len = read.calculate_length()
+        + cmp.calculate_length()
+        + write.calculate_length()
+        + end.calculate_length();
+
+    let header_size = obj.file_header_size() as u64 + 2 * obj.class().program_header_size() as u64;
+    let bss_offset = 0;
+    let text_offset = header_size;
+
+    let base_addr = 0x400000_u64;
+    let text_addr = base_addr + text_offset;
+    let bss_addr = text_addr + total_len;
+
+    read[2] = Insn::Mov(MovInsn::DataToReg(
+        RegDataRef::Value32(bss_addr as u32),
+        Reg::Rsi,
+    ));
+
+    write[2] = Insn::Mov(MovInsn::DataToReg(
+        RegDataRef::Value32(bss_addr as u32),
+        Reg::Rsi,
+    ));
+
+    buf.add_all(read);
+    buf.add_all(cmp);
+    buf.add_all(write);
+    buf.add_all(end);
+
+    obj.header.e_type = ET_EXEC;
+    obj.header.e_phoff = obj.class().file_header_size() as u64;
+    obj.header.e_machine = EM_X86_64;
+    obj.header.e_entry = text_addr;
+
+    let text = obj.sections.add();
+
+    text.name = b".text"[..].into();
+    text.sh_type = SHT_PROGBITS;
+    text.sh_flags = (SHF_ALLOC | SHF_EXECINSTR) as u64;
+    text.sh_addralign = 1;
+    text.sh_offset = text_offset;
+    text.sh_size = total_len;
+    text.sh_addr = text_addr;
+    text.data = SectionData::Data(buf.encode().into());
+
+    let text_id = text.id();
+    let bss = obj.sections.add();
+
+    bss.name = b".bss"[..].into();
+    bss.sh_type = SHT_NOBITS;
+    bss.sh_flags = (SHF_ALLOC | SHF_WRITE) as u64;
+    bss.sh_addralign = 1;
+    bss.sh_offset = bss_offset;
+    bss.sh_size = bss_size;
+    bss.sh_addr = bss_addr;
+    bss.data = SectionData::UninitializedData(bss_size);
+
+    let bss_id = bss.id();
+    let shstrtab = obj.sections.add();
+
+    shstrtab.name = b".shstrtab"[..].into();
+    shstrtab.sh_type = SHT_STRTAB;
+    shstrtab.data = SectionData::SectionString;
+    shstrtab.sh_addralign = 1;
+
+    obj.set_section_sizes();
+
+    let text_seg = obj.segments.add();
+
+    text_seg.p_type = PT_LOAD;
+    text_seg.p_flags = PF_R | PF_W | PF_X;
+    text_seg.p_vaddr = text_addr;
+    text_seg.p_paddr = text_addr;
+    text_seg.p_offset = text_offset;
+    text_seg.p_align = 1;
+    text_seg.p_filesz = total_len;
+    text_seg.p_memsz = total_len + bss_size;
+
+    text_seg.sections.push(bss_id);
+    text_seg.sections.push(text_id);
 
     let mut data = Vec::new();
 

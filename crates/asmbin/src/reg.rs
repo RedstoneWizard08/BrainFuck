@@ -50,4 +50,9 @@ impl Reg {
             _ => false,
         }
     }
+
+    #[inline(always)]
+    pub const fn needs_rex(&self) -> bool {
+        self.needs_64() || self.bit_width() == 64
+    }
 }

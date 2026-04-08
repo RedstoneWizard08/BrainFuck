@@ -37,7 +37,6 @@ pub enum BfInsn {
     SetAndMove(i64, i64),
     AddAndMove(i64, i64),
     CopyLoop(ArenaItem<Vec<(i64, i64)>>),
-    SimdAddMove(ArenaItem<Vec<i8>>, i64),
     Loop(ArenaItem<InsnBuf>),
 
     /// 0 = how many cells to skip while scanning
@@ -225,7 +224,6 @@ impl<'a> Iterator for InsnIter<'a> {
 
 pub struct OptCx {
     pub(super) loop_arena: ArenaRef<InsnBuf>,
-    pub(super) simd_add_move_arena: ArenaRef<Vec<i8>>,
     pub(super) copy_loop_arena: ArenaRef<Vec<(i64, i64)>>,
     pub(super) insns: InsnBuf,
     pub(super) opts: CompilerOptions,
@@ -233,7 +231,6 @@ pub struct OptCx {
 
 pub struct ActiveOptCx<'a> {
     pub loop_arena: ArenaRef<InsnBuf>,
-    pub simd_add_move_arena: ArenaRef<Vec<i8>>,
     pub copy_loop_arena: ArenaRef<Vec<(i64, i64)>>,
     pub insns: InsnIter<'a>,
     pub opts: CompilerOptions,
@@ -276,7 +273,6 @@ impl OptCx {
     pub fn new(opts: CompilerOptions) -> Self {
         Self {
             loop_arena: Arena::new(),
-            simd_add_move_arena: Arena::new(),
             copy_loop_arena: Arena::new(),
             insns: InsnBuf::new(),
             opts,
@@ -293,7 +289,6 @@ impl OptCx {
 
         ActiveOptCx {
             loop_arena: self.loop_arena.clone(),
-            simd_add_move_arena: self.simd_add_move_arena.clone(),
             copy_loop_arena: self.copy_loop_arena.clone(),
             insns: self.insns.iter_mut(),
             opts: self.opts.clone(),
@@ -311,7 +306,6 @@ impl OptCx {
         for item in loops.iter_mut() {
             let active = ActiveOptCx {
                 loop_arena: self.loop_arena.clone(),
-                simd_add_move_arena: self.simd_add_move_arena.clone(),
                 copy_loop_arena: self.copy_loop_arena.clone(),
                 insns: item.iter_mut(),
                 opts: self.opts.clone(),
@@ -380,10 +374,6 @@ impl OptCx {
 
                 BfInsn::CopyLoop(it) => {
                     OptAction::CopyLoop(self.copy_loop_arena.fetch(*it).clone())
-                }
-
-                BfInsn::SimdAddMove(it, offs) => {
-                    OptAction::SimdAddMove(self.simd_add_move_arena.fetch(*it).clone(), *offs)
                 }
 
                 BfInsn::Loop(it) => {

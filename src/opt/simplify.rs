@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use crate::{backend::Optimization, opt::{OptAction, Optimizer, ValueAction}};
+use crate::{
+    backend::Optimization,
+    opt::{OptAction, Optimizer, ValueAction},
+};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn simplify(&mut self) {

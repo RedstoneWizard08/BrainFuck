@@ -87,13 +87,6 @@ pub enum Optimization {
     /// **Note:** Requires unsafe mode.
     CopyLoop,
 
-    /// Perform vectorization when operating on sets of numbers in a row.
-    ///
-    /// This requires [`Self::SetMove`] to be enabled.
-    ///
-    /// **Note:** Requires unsafe mode.
-    Simd,
-
     /// Simplify Set-Then-Add operations.
     ///
     /// Some cases of this cannot be detected by [`Self::Chain`].

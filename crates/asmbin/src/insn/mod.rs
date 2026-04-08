@@ -1,26 +1,64 @@
+pub mod add;
+pub mod cmp;
+pub mod dec;
+pub mod imul;
+pub mod inc;
+pub mod jmp;
+pub mod lea;
 pub mod mov;
+pub mod repne;
+pub mod sub;
 pub mod syscall;
+pub mod xor;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Insn {
-    Mov(mov::MovInsn),
-    Syscall(syscall::SyscallInsn),
+macro_rules! insn_wrapper {
+    ($($insn: ident),* $(,)?) => {
+        pastey::paste! {
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub enum Insn {
+                $([<$insn:upper_camel>]($insn::[<$insn:upper_camel Insn>])),*
+            }
+
+            impl const InsnInfo for Insn {
+                fn predict_size(&self) -> usize {
+                    match self {
+                        $(Self::[<$insn:upper_camel>](it) => it.predict_size()),*
+                    }
+                }
+            }
+
+            impl InsnEncode for Insn {
+                fn encode(self) -> Vec<u8> {
+                    match self {
+                        $(Self::[<$insn:upper_camel>](it) => it.encode()),*
+                    }
+                }
+            }
+
+            $(
+                impl From<$insn::[<$insn:upper_camel Insn>]> for Insn {
+                    fn from(insn: $insn::[<$insn:upper_camel Insn>]) -> Insn {
+                        Insn::[<$insn:upper_camel>](insn)
+                    }
+                }
+            )*
+        }
+    };
 }
 
-impl Insn {
-    pub const fn predict_size(&self) -> usize {
-        match self {
-            Insn::Mov(it) => it.predict_size(),
-            Insn::Syscall(it) => it.predict_size(),
-        }
-    }
-
-    pub fn encode(self) -> Vec<u8> {
-        match self {
-            Insn::Mov(it) => it.encode(),
-            Insn::Syscall(it) => it.encode(),
-        }
-    }
+insn_wrapper! {
+    add,
+    cmp,
+    dec,
+    imul,
+    inc,
+    jmp,
+    lea,
+    mov,
+    repne,
+    sub,
+    syscall,
+    xor,
 }
 
 pub const trait InsnInfo {
@@ -44,76 +82,136 @@ pub trait InsnEncode: InsnInfo {
 
 use crate::{data::RegDataRef, reg::Reg};
 
-const fn encode_rex(a: Reg, b: RegDataRef) -> u8 {
-    let res = 0b01000000;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ModRm {
+    pub mod_: u8,
+    pub reg: u8,
+    pub rm: u8,
+}
 
+impl ModRm {
+    pub const fn encode(&self) -> u8 {
+        let mod_ = (self.mod_ & 0b11) << 6;
+        let reg = (self.reg & 0b111) << 3;
+        let rm = self.rm & 0b111;
+
+        mod_ | reg | rm
+    }
+}
+
+pub fn encode_rex(a: &Option<Reg>, b: &Option<RegDataRef>) -> u8 {
+    let res = 0b01000000;
     let w = 1 << 3;
 
-    let r = if b.is_value() {
+    let r = if b.is_some_and(|it| it.is_value()) {
         0
     } else {
-        (a.id_bits() & 0b1000) >> 1
+        (a.as_ref().map(|it| it.id_bits()).unwrap_or(0) & 0b1000) >> 1
     };
 
+    // I don't think this is ever used lol
     let x = 0 >> 2;
-    let b = (b.id_bits() & 0b1000) >> 3;
+    let b = (b.as_ref().map(|it| it.id_bits()).unwrap_or(0) & 0b1000) >> 3;
 
     let wrxb = w | r | x | b;
 
     res | wrxb
 }
 
-const fn modrm(b: RegDataRef) -> u8 {
+pub const fn encode_rex_for_reg(reg: Reg) -> u8 {
+    let res = 0b01000000;
+    let w = 1 << 3;
+    let r = (reg.id_bits() & 0b1000) >> 1;
+    let x = 0 >> 2;
+    let b = 0;
+
+    let wrxb = w | r | x | b;
+
+    res | wrxb
+}
+
+pub const fn modrm(b: Option<RegDataRef>) -> u8 {
     match b {
-        RegDataRef::Direct(_)
-        | RegDataRef::Value8(_)
-        | RegDataRef::Value16(_)
-        | RegDataRef::Value32(_)
-        | RegDataRef::Value64(_) => 0b11,
-        RegDataRef::RegOffset8(_, _) => 0b01,
-        RegDataRef::RegOffset32(_, _) => 0b10,
+        Some(
+            RegDataRef::Direct(_)
+            | RegDataRef::Value8(_)
+            | RegDataRef::Value16(_)
+            | RegDataRef::Value32(_)
+            | RegDataRef::Value64(_),
+        )
+        | None => 0b11,
+
+        Some(RegDataRef::RegOffset8(_, _)) => 0b01,
+        Some(RegDataRef::RegOffset32(_, _)) => 0b10,
+
+        Some(RegDataRef::DirectValue(_)) => 0b00,
     }
 }
 
-const fn encode_modrm(a: Reg, b: RegDataRef) -> u8 {
-    let mod_ = modrm(b) << 6;
-    let mut reg = a.id_bits() & 0b111;
-    let mut rm = b.id_bits() & 0b111;
+pub struct EncodeOpts {
+    opcode: u8,
+    reg: Reg,
+    data: Option<RegDataRef>,
+    skip_modrm: bool,
 
-    if b.is_value() {
-        std::mem::swap(&mut reg, &mut rm);
-    }
-
-    reg <<= 3;
-
-    mod_ | reg | rm
+    /// Pass a custom value to modrm's reg field, moving the register to the rm
+    /// field and excluding the data from it.
+    modrm_reg: Option<u8>,
 }
 
-pub fn encode_insn(op: u8, a: Reg, mut b: RegDataRef, skip_modrm: bool) -> Vec<u8> {
-    b.simplify();
+pub fn encode_insn(opcode: u8, reg: Reg, data: Option<RegDataRef>, skip_modrm: bool) -> Vec<u8> {
+    encode_insn_with(EncodeOpts {
+        opcode,
+        reg,
+        data,
+        skip_modrm,
+        modrm_reg: None,
+    })
+}
 
-    let needs_rex = a.needs_64() || b.needs_64() || a.bit_width() == 64 || b.bit_width() == 64;
+pub fn encode_insn_with(mut opts: EncodeOpts) -> Vec<u8> {
+    opts.data = opts.data.map(|mut it| {
+        it.simplify();
+        it
+    });
+
+    let needs_rex = opts.reg.needs_rex() || opts.data.is_some_and(|it| it.needs_rex());
     let mut buf = Vec::new();
 
     if needs_rex {
-        buf.push(encode_rex(a, b));
+        buf.push(encode_rex(&Some(opts.reg), &opts.data));
     }
 
-    buf.push(op);
+    buf.push(opts.opcode);
 
-    if !skip_modrm {
-        buf.push(encode_modrm(a, b));
+    if !opts.skip_modrm {
+        buf.push(
+            if let Some(reg) = opts.modrm_reg {
+                ModRm {
+                    mod_: modrm(opts.data),
+                    reg,
+                    rm: opts.reg.id_bits(),
+                }
+            } else if opts.data.is_some_and(|it| it.is_value()) {
+                ModRm {
+                    mod_: modrm(opts.data),
+                    reg: opts.data.as_ref().unwrap().id_bits(),
+                    rm: opts.reg.id_bits(),
+                }
+            } else {
+                ModRm {
+                    mod_: modrm(opts.data),
+                    reg: opts.reg.id_bits(),
+                    rm: opts.data.map(|it| it.id_bits()).unwrap_or(0),
+                }
+            }
+            .encode(),
+        );
     }
 
-    match b {
-        RegDataRef::Direct(_) => {}
-        RegDataRef::RegOffset8(_, o) => buf.push(o),
-        RegDataRef::RegOffset32(_, o) => buf.extend(o.to_le_bytes()),
-        RegDataRef::Value8(v) => buf.push(v),
-        RegDataRef::Value16(v) => buf.extend(v.to_le_bytes()),
-        RegDataRef::Value32(v) => buf.extend(v.to_le_bytes()),
-        RegDataRef::Value64(v) => buf.extend(v.to_le_bytes()),
-    };
+    if let Some(data) = opts.data {
+        buf.extend(data.extra_bytes());
+    }
 
     buf
 }

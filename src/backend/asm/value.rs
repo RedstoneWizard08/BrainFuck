@@ -2,7 +2,11 @@ use crate::backend::asm::{CodeGenerator, insn::AsmBuilder};
 
 impl<'a> CodeGenerator<'a> {
     pub(super) fn add_slot(&mut self, amount: i64) {
-        self.add(self.ptr.ptr(), amount);
+        if amount == 1 {
+            self.inc(self.ptr.ptr());
+        } else {
+            self.add(self.ptr.ptr(), amount);
+        }
     }
 
     pub(super) fn add_slot_offset(&mut self, amount: i64, offset: i64) {

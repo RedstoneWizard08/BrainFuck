@@ -2,7 +2,6 @@ mod copy;
 mod io;
 mod loops;
 mod ptr;
-mod simd;
 mod util;
 mod value;
 
@@ -296,7 +295,6 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             OptAction::MovePtr(v) => self.move_ptr(*v),
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
-            OptAction::SimdAddMove(a, o) => self.unsafe_simd_add_arr_move(a, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
             OptAction::Scan(_skip) => todo!(),
         }

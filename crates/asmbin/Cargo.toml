@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.102"
 asmbin-macros = { version = "0.1.0", path = "../asmbin-macros" }
+itertools = "0.14.0"
 object = { version = "0.39.0", features = ["build", "write"] }
+pastey = "0.2.1"

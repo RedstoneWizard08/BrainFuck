@@ -1,3 +1,3 @@
 pub fn main() {
-    asmbin::example::hello_world_no_reloc().unwrap();
+    asmbin::example::echo_no_reloc_compact().unwrap();
 }
