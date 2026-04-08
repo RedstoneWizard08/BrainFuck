@@ -1,3 +1,7 @@
+_Literally just wrote this file for me to organize my thoughts because the x86_64 spec is INSANE_
+
+_No, this is not for an LLM_
+
 # REX Prefix
 
 Needed when any of:
