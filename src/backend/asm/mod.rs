@@ -19,7 +19,7 @@ use object::{
 
 use crate::{
     backend::CompilerOptions,
-    opt::{OptAction, ValueAction},
+    opt::action::{OptAction, ValueAction},
 };
 
 // Magic constant used for "relocation".

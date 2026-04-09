@@ -1,4 +1,4 @@
-use bf::opt::{arena::Arena, base::BfInsn};
+use bf::opt::v2::{arena::Arena, base::BfInsn};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 pub fn arena_benches(c: &mut Criterion) {

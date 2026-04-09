@@ -5,7 +5,7 @@ use asmbin::{
     reg::Reg,
 };
 
-use crate::{backend::asm::CodeGenerator, opt::OptAction};
+use crate::{backend::asm::CodeGenerator, opt::action::OptAction};
 
 impl<'a> CodeGenerator<'a> {
     pub(super) fn translate_loop(&mut self, buf: &mut InsnBuf, actions: &Vec<OptAction>) {

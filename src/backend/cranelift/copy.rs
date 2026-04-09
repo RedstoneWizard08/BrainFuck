@@ -1,10 +1,9 @@
 use crate::backend::cranelift::CodeGenerator;
 use cranelift::prelude::{InstBuilder, MemFlags};
 use cranelift_module::Module;
-use std::collections::BTreeMap;
 
 impl<'a, M: Module> CodeGenerator<'a, M> {
-    pub(super) fn copy_loop(&mut self, values: &BTreeMap<i64, i64>) {
+    pub(super) fn copy_loop(&mut self, values: &Vec<(i64, i64)>) {
         let base_addr = self.b.use_var(self.tape_ptr);
         let value = self.b.ins().load(self.byte, MemFlags::new(), base_addr, 0);
 

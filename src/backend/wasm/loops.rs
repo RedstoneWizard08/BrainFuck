@@ -1,4 +1,4 @@
-use crate::{backend::wasm::CodeGenerator, opt::OptAction};
+use crate::{backend::wasm::CodeGenerator, opt::action::OptAction};
 use wasm_encoder::{BlockType, InstructionSink, MemArg};
 
 impl<'a> CodeGenerator<'a> {

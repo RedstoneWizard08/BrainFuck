@@ -1,4 +1,4 @@
-use bf::opt::Optimizer;
+use bf::opt::v1::Optimizer;
 use criterion::criterion_main;
 
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";

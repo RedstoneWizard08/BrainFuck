@@ -16,7 +16,7 @@ macro_rules! jit_single_bench {
             fn [<compile_ $name _opt_ $level>](c: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
                 let opts = opts!($level);
                 let program = bf::parse([<$name:upper>]);
-                let program = bf::opt::Optimizer::new(&opts, program).run_all().finish();
+                let program = bf::opt::v1::Optimizer::new(&opts, program).run_all().finish();
                 let io = bf::testing::BufTestingIo::new();
 
                 c.bench_function(concat!("jit compile [opt_level=", stringify!($level), "]: ", $display), |b| {
@@ -39,7 +39,7 @@ macro_rules! jit_single_bench {
             fn [<run_ $name _opt_ $level>](c: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
                 let opts = opts!($level);
                 let program = bf::parse([<$name:upper>]);
-                let program = bf::opt::Optimizer::new(&opts, program).run_all().finish();
+                let program = bf::opt::v1::Optimizer::new(&opts, program).run_all().finish();
                 let io = bf::testing::BufTestingIo::new();
                 let func = bf::backend::cranelift::jit_compile(&program, opts, Some(Box::new(&io)));
 

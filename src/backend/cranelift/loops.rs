@@ -1,4 +1,4 @@
-use crate::{backend::cranelift::CodeGenerator, opt::OptAction};
+use crate::{backend::cranelift::CodeGenerator, opt::action::OptAction};
 use cranelift::prelude::{InstBuilder, IntCC};
 use cranelift_module::Module;
 

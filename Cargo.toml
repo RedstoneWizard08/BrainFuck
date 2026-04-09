@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "asm"]
+default = ["cli", "testing", "asm", "cranelift", "wasm", "interp"]
 
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]

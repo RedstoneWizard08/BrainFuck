@@ -7,7 +7,7 @@ mod value;
 
 use crate::{
     backend::{CompilerOptions, CustomIo},
-    opt::{OptAction, ValueAction},
+    opt::action::{OptAction, ValueAction},
 };
 use cranelift::{
     codegen::{

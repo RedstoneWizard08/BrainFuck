@@ -1,4 +1,7 @@
-use crate::{backend::CompilerOptions, parse};
+use crate::{
+    backend::{Backend, CompilerOptions},
+    parse,
+};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
@@ -35,44 +38,13 @@ impl Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Run a BrainFuck program using JIT compilation.
+    /// Only works with the Cranelift compiler backend.
     #[cfg(feature = "cranelift")]
     #[command(name = "jit")]
     #[clap(aliases = &["j", "r", "run"])]
     Jit {
         /// The path to the file to run.
         file: PathBuf,
-
-        #[command(flatten)]
-        opts: CompilerOptions,
-    },
-
-    /// Compile a BrainFuck program to a WASM binary.
-    #[command(name = "wasm")]
-    #[clap(aliases = &["w", "wa"])]
-    #[cfg(feature = "wasm")]
-    Wasm {
-        /// The path to the file to compile.
-        file: PathBuf,
-
-        /// The path to output the WASM to.
-        #[arg(short, long, default_value = "./a.wasm")]
-        output: PathBuf,
-
-        #[command(flatten)]
-        opts: CompilerOptions,
-    },
-
-    /// Compile a BrainFuck program to raw assembly.
-    #[command(name = "asm")]
-    #[clap(aliases = &["as"])]
-    #[cfg(feature = "asm")]
-    Asm {
-        /// The path to the file to compile.
-        file: PathBuf,
-
-        /// The path to output the assembly code to.
-        #[arg(short, long, default_value = "./a.asm")]
-        output: PathBuf,
 
         #[command(flatten)]
         opts: CompilerOptions,
@@ -90,11 +62,10 @@ pub enum Commands {
         opts: CompilerOptions,
     },
 
-    /// Compile a BrainFuck program to an executable binary.
-    #[cfg(feature = "cranelift")]
+    /// Compile a BrainFuck program.
     #[command(name = "aot")]
-    #[clap(aliases = &["c", "compile", "a", "b", "build"])]
-    Aot {
+    #[clap(aliases = &["c", "compile"])]
+    Compile {
         /// The BrainFuck file to compile.
         file: PathBuf,
 
@@ -103,10 +74,12 @@ pub enum Commands {
         output: PathBuf,
 
         /// The target triple to compile for.
+        /// Ignored unless using the Cranelift backend.
         #[arg(short, long)]
         target: Option<String>,
 
         /// Skip linking and instead output the object file.
+        /// Ignored unless using the Cranelift backend.
         #[arg(short = 'c', long)]
         object: bool,
 
@@ -120,51 +93,20 @@ impl Commands {
         match self {
             #[cfg(feature = "cranelift")]
             Self::Jit { file, mut opts } => {
-                opts.disable(Optimization::Scanners); // TODO
+                // Not yet supported on this backend
+                opts.disable(crate::backend::Optimization::Scanners);
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = crate::opt::Optimizer::new(&opts, actions)
-                    .run_all()
-                    .finish_with_write()?;
+                let actions = if opts.opt_v1 {
+                    crate::opt::v1::Optimizer::new(&opts, actions)
+                        .run_all()
+                        .finish_with_write()?
+                } else {
+                    crate::opt::v2::optimize_v2(&actions, &opts)
+                };
 
                 crate::backend::cranelift::jit_compile_run(&actions, opts, None)
-            }
-
-            #[cfg(feature = "wasm")]
-            Self::Wasm {
-                file,
-                output,
-                mut opts,
-            } => {
-                opts.disable(Optimization::Scanners); // TODO
-
-                let actions = parse(&fs::read_to_string(file)?);
-
-                let actions = crate::opt::Optimizer::new(&opts, actions)
-                    .run_all()
-                    .finish_with_write()?;
-
-                fs::write(
-                    output,
-                    crate::backend::wasm::CodeGenerator::run(&opts, &actions),
-                )?;
-            }
-
-            #[cfg(feature = "asm")]
-            Self::Asm { file, output, opts } => {
-                let actions = parse(&fs::read_to_string(file)?);
-
-                // let actions = crate::opt::Optimizer::new(&opts, actions)
-                //     .run_all()
-                //     .finish_with_write()?;
-
-                let actions = crate::opt::v2::optimize_v2(&actions, &opts);
-
-                fs::write(
-                    output,
-                    crate::backend::asm::CodeGenerator::run(&opts, &actions),
-                )?;
             }
 
             #[cfg(feature = "interp")]
@@ -173,40 +115,87 @@ impl Commands {
 
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = crate::opt::Optimizer::new(&opts, actions)
-                    .run_all()
-                    .finish_with_write()?;
+                let actions = if opts.opt_v1 {
+                    crate::opt::v1::Optimizer::new(&opts, actions)
+                        .run_all()
+                        .finish_with_write()?
+                } else {
+                    crate::opt::v2::optimize_v2(&actions, &opts)
+                };
 
                 crate::interp::interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
             }
 
-            #[cfg(feature = "cranelift")]
-            Self::Aot {
+            #[allow(unused_mut)]
+            Self::Compile {
                 file,
                 output,
-                target,
-                object,
+                target: _target,
+                object: _object,
                 mut opts,
             } => {
-                opts.disable(Optimization::Scanners); // TODO
-
                 let actions = parse(&fs::read_to_string(file)?);
 
-                let actions = crate::opt::Optimizer::new(&opts, actions)
-                    .run_all()
-                    .finish_with_write()?;
+                #[cfg(feature = "cranelift")]
+                if opts.backend == crate::backend::Backend::Cranelift {
+                    // Not yet supported on this backend
+                    opts.disable(crate::backend::Optimization::Scanners);
+                }
 
-                let target = target
-                    .map(|it| target_lexicon::Triple::from_str(&it).ok())
-                    .flatten()
-                    .unwrap_or(target_lexicon::Triple::host());
+                #[cfg(feature = "wasm")]
+                if opts.backend == crate::backend::Backend::Wasm {
+                    // Not yet supported on this backend
+                    opts.disable(crate::backend::Optimization::Scanners);
+                }
 
-                let obj = crate::backend::cranelift::aot_compile(&actions, &target, opts);
-
-                if object {
-                    fs::write(output, obj)?;
+                let actions = if opts.opt_v1 {
+                    crate::opt::v1::Optimizer::new(&opts, actions)
+                        .run_all()
+                        .finish_with_write()?
                 } else {
-                    link::link_aot(obj, output, &target);
+                    crate::opt::v2::optimize_v2(&actions, &opts)
+                };
+
+                match opts.backend {
+                    #[cfg(feature = "asm")]
+                    Backend::Asm => {
+                        fs::write(
+                            output,
+                            crate::backend::asm::CodeGenerator::run(&opts, &actions),
+                        )?;
+                    }
+
+                    #[cfg(feature = "asm")]
+                    Backend::LegacyAsm => {
+                        fs::write(
+                            output,
+                            crate::backend::legacy_asm::CodeGenerator::run(&opts, &actions),
+                        )?;
+                    }
+
+                    #[cfg(feature = "cranelift")]
+                    Backend::Cranelift => {
+                        let target = _target
+                            .map(|it| target_lexicon::Triple::from_str(&it).ok())
+                            .flatten()
+                            .unwrap_or(target_lexicon::Triple::host());
+
+                        let obj = crate::backend::cranelift::aot_compile(&actions, &target, opts);
+
+                        if _object {
+                            fs::write(output, obj)?;
+                        } else {
+                            link::link_aot(obj, output, &target);
+                        }
+                    }
+
+                    #[cfg(feature = "wasm")]
+                    Backend::Wasm => {
+                        fs::write(
+                            output,
+                            crate::backend::wasm::CodeGenerator::run(&opts, &actions),
+                        )?;
+                    }
                 }
             }
         };

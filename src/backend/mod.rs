@@ -1,13 +1,15 @@
-#[cfg(feature = "cranelift")]
-pub mod cranelift;
-
 #[cfg(feature = "asm")]
 pub mod asm;
+
+#[cfg(feature = "asm")]
+pub mod legacy_asm;
+
+#[cfg(feature = "cranelift")]
+pub mod cranelift;
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-use clap::ValueEnum;
 use enum_display::EnumDisplay;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -46,11 +48,50 @@ pub struct CompilerOptions {
     /// Disable I/O operations. Useful for benchmarking and profiling.
     #[cfg_attr(feature = "cli", arg(short = 'N', long))]
     pub no_io: bool,
+
+    /// The compiler backend to use.
+    #[cfg_attr(feature = "cli", arg(short = 'B', long, value_enum, default_value_t = Backend::default()))]
+    pub backend: Backend,
+
+    /// Use the legacy V1 optimization backend.
+    #[cfg_attr(feature = "cli", arg(long))]
+    pub opt_v1: bool,
 }
 
 #[derive(
-    Debug, Clone, Copy, Serialize, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay,
+    Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay, Default,
 )]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum Backend {
+    /// The modern ASM backend.
+    /// Outputs an executable (ELF) file directly.
+    #[cfg(feature = "asm")]
+    #[cfg_attr(feature = "asm", default)]
+    Asm,
+
+    /// The legacy ASM backend.
+    /// Outputs an x86_64 assembly source file.
+    #[cfg(feature = "asm")]
+    LegacyAsm,
+
+    /// The Cranelift codegen backend.
+    /// Outputs an object file.
+    #[cfg(feature = "cranelift")]
+    #[cfg_attr(all(not(feature = "asm"), feature = "cranelift"), default)]
+    Cranelift,
+
+    /// The WASM codegen backend.
+    /// Outputs a WASM binary.
+    #[cfg(feature = "wasm")]
+    #[cfg_attr(
+        all(not(feature = "asm"), not(feature = "cranelift"), feature = "wasm"),
+        default
+    )]
+    Wasm,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum Optimization {
     /// Chain math and shift operations.
     Chain,
@@ -94,6 +135,13 @@ pub enum Optimization {
 
     /// Loop unrolling.
     LoopUnroll,
+
+    /// Sort offseted operations by their offset.
+    ///
+    /// Opens up the possibility of further grouping and optimizations.
+    ///
+    /// Only supported with the V2 optimizer.
+    SortOffsetOps,
 }
 
 /// A trait for implementing custom I/O for use with the JIT compiler.

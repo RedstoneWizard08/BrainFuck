@@ -6,7 +6,7 @@ mod value;
 
 use crate::{
     backend::CompilerOptions,
-    opt::{OptAction, ValueAction},
+    opt::action::{OptAction, ValueAction},
 };
 use wasm_encoder::{
     CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection,

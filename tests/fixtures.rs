@@ -2,7 +2,7 @@
 
 use bf::{
     backend::{CompilerOptions, cranelift::jit_compile_run},
-    opt::Optimizer,
+    opt::v1::Optimizer,
     parse,
     testing::BufTestingIo,
 };
@@ -12,9 +12,9 @@ use std::{fs, path::PathBuf};
 macro_rules! test_dir {
     ($name: ident = $dir: expr) => {
         #[dir_test(
-                            dir: $dir,
-                            glob: "*.b",
-                        )]
+            dir: $dir,
+            glob: "*.b",
+        )]
         fn $name(fixture: Fixture<&str>) {
             let opts = CompilerOptions::default();
 

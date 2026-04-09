@@ -1,6 +1,6 @@
 use std::iter;
 
-use bf::opt::base::{BfInsn, InsnBuf};
+use bf::opt::v2::base::{BfInsn, InsnBuf};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 pub fn insn_benches(c: &mut Criterion) {

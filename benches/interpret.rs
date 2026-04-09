@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bf::{interp::interpret, opt::Optimizer, parse};
+use bf::{interp::interpret, opt::v1::Optimizer, parse};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";

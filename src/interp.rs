@@ -1,11 +1,11 @@
-use crate::opt::{OptAction, ValueAction};
+use crate::opt::action::{OptAction, ValueAction};
 use std::io::{Read, Write};
 
 const TAPE_SIZE: usize = u16::MAX as usize;
 const TAPE_SIZE_I: i64 = TAPE_SIZE as i64;
 
 struct ProgramState {
-    tape: [u8; TAPE_SIZE],
+    tape: [u8; TAPE_SIZE + 1],
     tape_ptr: i64,
 }
 
@@ -13,7 +13,7 @@ impl ProgramState {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
-            tape: [0; TAPE_SIZE],
+            tape: [0; TAPE_SIZE + 1],
             tape_ptr: 0,
         }
     }
@@ -159,16 +159,22 @@ fn eval<W: Write, R: Read>(
             state.tape[wrap_to_index(state.tape_ptr)] = 0;
         }
 
-        OptAction::Scan(_skip) => todo!(),
+        OptAction::Scan(skip) => {
+            while state.tape[wrap_to_index(state.tape_ptr)] != 0 {
+                state.tape_ptr += skip;
+            }
+        }
     }
 }
 
+#[inline(always)]
 pub const fn wrapping_conv(a: i64) -> u8 {
     let a = if a < 0 { i64::MAX + a } else { a };
 
     (a % (u8::MAX as i64)) as u8
 }
 
+#[inline(always)]
 pub const fn wrap_to_index(a: i64) -> usize {
     if TAPE_SIZE.trailing_zeros() == 0 {
         (a & TAPE_SIZE_I) as usize
