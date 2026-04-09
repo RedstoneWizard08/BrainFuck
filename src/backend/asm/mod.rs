@@ -1,20 +1,30 @@
 mod copy;
-mod insn;
 mod io;
 mod loops;
 mod ptr;
 mod value;
 
+use asmbin::{
+    buf::InsnBuf,
+    builders::{InsnBuilder, InsnRecv},
+    data::RegDataRef,
+    insn::{Insn, mov::MovInsn},
+    reg::Reg,
+};
+use object::{
+    Endianness,
+    build::elf::{Builder, SectionData},
+    elf,
+};
+
 use crate::{
-    backend::{
-        CompilerOptions,
-        asm::insn::{AsmBuilder, Data, Insn, Reg, TargetArch},
-    },
+    backend::CompilerOptions,
     opt::{OptAction, ValueAction},
 };
 
-const ASM_MINIFY: bool = true;
-const TAPE_DATA_NAME: &str = if ASM_MINIFY { "t" } else { "tape" };
+// Magic constant used for "relocation".
+const RELOCATOR: u32 = 0xCAFEBABE;
+const TAPE_PTR: Reg = Reg::Rbx;
 
 pub struct Rodata {
     pub name: String,
@@ -33,92 +43,133 @@ impl Rodata {
 
 #[allow(unused)]
 pub struct CodeGenerator<'a> {
-    insns: Vec<Insn>,
     opts: &'a CompilerOptions,
-    ptr: Reg,
-    ptr_32: Reg,
-    block: usize,
-    data: usize,
     rodata: Vec<Rodata>,
     known_nonzero: bool,
     known_zero: bool,
 }
 
 impl<'a> CodeGenerator<'a> {
-    pub fn run(opts: &'a CompilerOptions, actions: &Vec<OptAction>) -> String {
+    pub fn run(opts: &'a CompilerOptions, actions: &Vec<OptAction>) -> Vec<u8> {
         let mut me = Self {
             opts,
-            insns: Vec::new(),
-            ptr: Reg::Rbx,
-            ptr_32: Reg::Esi,
-            block: 0,
-            data: 0,
             rodata: Vec::new(),
             known_nonzero: false,
             known_zero: false,
         };
 
-        let arch = TargetArch::X86_64; // TODO: Options
+        let mut obj = Builder::new(Endianness::Little, true);
+        let bss_size = me.opts.tape_size as u64;
 
-        me.compile(actions);
+        let mut buf = InsnBuf::new();
+        let mut start = InsnBuf::new();
+        let prog = me.compile(actions);
 
-        let mut s = me
-            .insns
-            .into_iter()
-            .map(|it| it.stringify(arch))
-            .collect::<Vec<_>>()
-            .join("\n");
+        start.mov_to_reg(RELOCATOR, TAPE_PTR);
+        start.add(TAPE_PTR, me.opts.tape_size as u32 / 2);
 
-        s.insert_str(0, ".intel_syntax noprefix\n");
+        let total_len = start.calculate_length() + prog.calculate_length();
 
-        if !me.rodata.is_empty() {
-            s.push_str("\n.section .rodata\n");
+        let header_size =
+            obj.file_header_size() as u64 + 2 * obj.class().program_header_size() as u64;
 
-            s.push_str(
-                &me.rodata
-                    .into_iter()
-                    .map(|it| it.stringify())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            );
-        }
+        let bss_offset = 0;
+        let text_offset = header_size;
 
-        // GNU assembler likes a new line at the end and shows a warning otherwise XD
-        s.push('\n');
+        let base_addr = 0x400000_u64;
+        let text_addr = base_addr + text_offset;
+        let bss_addr = text_addr + total_len;
 
-        s
+        start[0] = Insn::Mov(MovInsn::DataToReg(
+            RegDataRef::Value32(bss_addr as u32),
+            TAPE_PTR.into(),
+        ));
+
+        buf.extend(start);
+        buf.extend(prog);
+
+        obj.header.e_type = elf::ET_EXEC;
+        obj.header.e_phoff = obj.class().file_header_size() as u64;
+        obj.header.e_machine = elf::EM_X86_64;
+        obj.header.e_entry = text_addr;
+
+        let text = obj.sections.add();
+
+        text.name = b".text"[..].into();
+        text.sh_type = elf::SHT_PROGBITS;
+        text.sh_flags = (elf::SHF_ALLOC | elf::SHF_EXECINSTR) as u64;
+        text.sh_addralign = 1;
+        text.sh_offset = text_offset;
+        text.sh_size = total_len;
+        text.sh_addr = text_addr;
+        text.data = SectionData::Data(buf.encode().into());
+
+        let text_id = text.id();
+        let bss = obj.sections.add();
+
+        bss.name = b".bss"[..].into();
+        bss.sh_type = elf::SHT_NOBITS;
+        bss.sh_flags = (elf::SHF_ALLOC | elf::SHF_WRITE) as u64;
+        bss.sh_addralign = 1;
+        bss.sh_offset = bss_offset;
+        bss.sh_size = bss_size;
+        bss.sh_addr = bss_addr;
+        bss.data = SectionData::UninitializedData(bss_size);
+
+        let bss_id = bss.id();
+        let shstrtab = obj.sections.add();
+
+        shstrtab.name = b".shstrtab"[..].into();
+        shstrtab.sh_type = elf::SHT_STRTAB;
+        shstrtab.data = SectionData::SectionString;
+        shstrtab.sh_addralign = 1;
+
+        obj.set_section_sizes();
+
+        let text_seg = obj.segments.add();
+
+        text_seg.p_type = elf::PT_LOAD;
+        text_seg.p_flags = elf::PF_R | elf::PF_W | elf::PF_X;
+        text_seg.p_vaddr = text_addr;
+        text_seg.p_paddr = text_addr;
+        text_seg.p_offset = text_offset;
+        text_seg.p_align = 1;
+        text_seg.p_filesz = total_len;
+        text_seg.p_memsz = total_len + bss_size;
+
+        text_seg.sections.push(bss_id);
+        text_seg.sections.push(text_id);
+
+        let mut data = Vec::new();
+
+        obj.write(&mut data).unwrap();
+
+        data
     }
 
-    fn compile(&mut self, actions: &Vec<OptAction>) {
-        self.section("bss");
-        self.resb(TAPE_DATA_NAME, self.opts.tape_size as i64);
-        self.section("text");
-        self.global("_start");
-        self.label("_start");
-        self.lea(self.ptr, Data::Label(TAPE_DATA_NAME));
-
-        // overflow protection - move the cursor to the center to prevent
-        // any potential overflow problems
-        self.add(self.ptr, self.opts.tape_size as i64 / 2);
+    fn compile(&mut self, actions: &Vec<OptAction>) -> InsnBuf {
+        let mut buf = InsnBuf::new();
 
         for insn in actions {
-            self.translate(insn);
+            self.translate(&mut buf, insn);
         }
 
-        self.mov(Reg::Rax, 60);
-        self.mov(Reg::Rdi, 0);
-        self.syscall();
+        buf.mov_to_reg(60_u32, Reg::Rax);
+        buf.mov_to_reg(0_u32, Reg::Rdi);
+        buf.syscall();
+
+        buf
     }
 
-    fn translate(&mut self, insn: &OptAction) {
+    fn translate(&mut self, buf: &mut InsnBuf, insn: &OptAction) {
         match insn {
             OptAction::Noop => (),
 
             OptAction::Value(it) => match it {
-                ValueAction::Output => self.print_slot(),
-                ValueAction::Input => self.input_slot(),
-                ValueAction::AddValue(v) => self.add_slot(*v),
-                ValueAction::BulkPrint(n) => self.bulk_print(*n),
+                ValueAction::Output => self.print_slot(buf),
+                ValueAction::Input => self.input_slot(buf),
+                ValueAction::AddValue(v) => self.add_slot(buf, *v),
+                ValueAction::BulkPrint(n) => self.bulk_print(buf, *n),
 
                 ValueAction::SetValue(v) => {
                     if *v == 0 {
@@ -129,24 +180,24 @@ impl<'a> CodeGenerator<'a> {
                         self.known_nonzero = true;
                     }
 
-                    self.set_slot(*v)
+                    self.set_slot(buf, *v)
                 }
             },
 
             OptAction::OffsetValue(it, offset) => match it {
-                ValueAction::Output => self.print_slot_offset(*offset),
-                ValueAction::Input => self.input_slot_offset(*offset),
-                ValueAction::AddValue(v) => self.add_slot_offset(*v, *offset),
-                ValueAction::SetValue(v) => self.set_slot_offset(*v, *offset),
-                ValueAction::BulkPrint(n) => self.bulk_print_offset(*n, *offset),
+                ValueAction::Output => self.print_slot_offset(buf, *offset),
+                ValueAction::Input => self.input_slot_offset(buf, *offset),
+                ValueAction::AddValue(v) => self.add_slot_offset(buf, *v, *offset),
+                ValueAction::SetValue(v) => self.set_slot_offset(buf, *v, *offset),
+                ValueAction::BulkPrint(n) => self.bulk_print_offset(buf, *n, *offset),
             },
 
-            OptAction::Loop(actions) => self.translate_loop(actions),
-            OptAction::MovePtr(v) => self.move_ptr(*v),
-            OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
-            OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
-            OptAction::CopyLoop(v) => self.copy_loop(&v),
-            OptAction::Scan(s) => self.scan(*s),
+            OptAction::Loop(actions) => self.translate_loop(buf, actions),
+            OptAction::MovePtr(v) => self.move_ptr(buf, *v),
+            OptAction::SetAndMove(v, o) => self.set_move(buf, *v, *o),
+            OptAction::AddAndMove(v, o) => self.add_move(buf, *v, *o),
+            OptAction::CopyLoop(v) => self.copy_loop(buf, &v),
+            OptAction::Scan(s) => self.scan(buf, *s),
         };
 
         match insn {
@@ -157,11 +208,5 @@ impl<'a> CodeGenerator<'a> {
                 self.known_nonzero = false;
             }
         }
-    }
-}
-
-impl<'a> AsmBuilder for CodeGenerator<'a> {
-    fn insns(&mut self) -> &mut Vec<Insn> {
-        &mut self.insns
     }
 }

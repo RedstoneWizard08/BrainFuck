@@ -4,20 +4,12 @@ use crate::insn::{Insn, InsnEncode, InsnInfo};
 
 #[derive(Debug, Clone)]
 pub struct InsnBuf {
-    buf: Vec<Insn>,
+    pub(crate) buf: Vec<Insn>,
 }
 
 impl InsnBuf {
     pub fn new() -> Self {
         Self { buf: Vec::new() }
-    }
-
-    pub fn add(&mut self, insn: impl Into<Insn>) {
-        self.buf.push(insn.into());
-    }
-
-    pub fn add_all(&mut self, insns: impl IntoIterator<Item = Insn>) {
-        self.buf.extend(insns);
     }
 
     pub fn calculate_length(&self) -> u64 {
@@ -30,8 +22,11 @@ impl InsnBuf {
 
         self.buf.into_iter().for_each(|it| {
             let len = it.predict_size();
+            let enc = it.encode();
 
-            buf[pos..pos + len].copy_from_slice(&it.encode());
+            assert_eq!(len, enc.len(), "len ({len}) != enc ({}): {it:?}", enc.len());
+
+            buf[pos..pos + len].copy_from_slice(&enc);
             pos += len;
         });
 

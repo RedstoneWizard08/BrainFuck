@@ -16,12 +16,12 @@ impl LeaInsn {
 
 impl const InsnInfo for LeaInsn {
     fn predict_size(&self) -> usize {
-        self.0.added_bytes() + 3
+        self.0.added_bytes() + 2 + (self.0.needs_rex() || self.1.needs_rex()) as usize
     }
 }
 
 impl InsnEncode for LeaInsn {
     fn encode(self) -> Vec<u8> {
-        encode_insn(self.opcode(), self.1, Some(self.0), false)
+        encode_insn(vec![self.opcode()], self.1, Some(self.0), false)
     }
 }

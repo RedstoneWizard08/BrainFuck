@@ -21,3 +21,6 @@ bf.zip
 /pkg
 /demo/pkg
 /*.o
+/*.s
+/*.elf
+/cmp.py

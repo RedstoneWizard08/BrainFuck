@@ -11,7 +11,14 @@ pub struct XorInsn(pub Reg, pub RegDataRef);
 impl XorInsn {
     pub const fn opcode(&self) -> u8 {
         match self.1 {
-            RegDataRef::Direct(_) | RegDataRef::DirectValue(_) => 0x33, // FIXME: 8-bit might need 0x32
+            RegDataRef::Direct(reg) | RegDataRef::DirectValue(reg) => {
+                if reg.bit_width() == 8 {
+                    0x32
+                } else {
+                    0x33
+                }
+            }
+
             RegDataRef::RegOffset8(_, _) => 0x33,
             RegDataRef::RegOffset32(_, _) => 0x33,
 
@@ -46,17 +53,21 @@ impl XorInsn {
 
 impl const InsnInfo for XorInsn {
     fn predict_size(&self) -> usize {
-        self.1.added_bytes() + 3
+        self.1.added_bytes()
+            + 1
+            + (self.opcode() != 0x34 && self.opcode() != 0x35) as usize
+            + (self.0.needs_rex() || self.1.needs_rex()) as usize
     }
 }
 
 impl InsnEncode for XorInsn {
     fn encode(self) -> Vec<u8> {
         encode_insn_with(EncodeOpts {
-            opcode: self.opcode(),
-            reg: self.0,
+            opcode: vec![self.opcode()],
+            reg: RegDataRef::Direct(self.0),
             data: Some(self.1),
             skip_modrm: self.opcode() == 0x34 || self.opcode() == 0x35,
+            invert_operands: false,
 
             modrm_reg: match self.opcode() {
                 0x80 | 0x81 => Some(6),

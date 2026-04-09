@@ -52,9 +52,9 @@ impl const InsnInfo for ImulInsn {
             }
 
             Self::Immediate { dst, src, mul } => {
-                let extra = any_needs_64!(dst, src, mul) as u8 as usize;
+                let extra = any_needs_64!(dst, src, mul) as usize;
 
-                2 + extra + mul.added_bytes()
+                2 + extra + src.added_bytes() + mul.added_bytes()
             }
         }
     }
@@ -71,14 +71,14 @@ impl InsnEncode for ImulInsn {
                 }
 
                 if any_needs_64!(reg, mul) {
-                    buf.push(encode_rex(&Some(reg), &Some(mul)));
+                    buf.push(encode_rex(&Some(RegDataRef::Direct(reg)), &Some(mul)));
                 }
 
                 buf.extend(self.opcode());
 
                 buf.push(
                     ModRm {
-                        mod_: modrm(Some(mul)),
+                        mod_: modrm(Some(RegDataRef::Direct(reg)), Some(mul)),
                         reg: reg.id_bits(),
                         rm: mul.id_bits(),
                     }
@@ -94,14 +94,14 @@ impl InsnEncode for ImulInsn {
                 }
 
                 if any_needs_64!(dst, src, mul) {
-                    buf.push(encode_rex(&Some(dst), &Some(src)));
+                    buf.push(encode_rex(&Some(RegDataRef::Direct(dst)), &Some(src)));
                 }
 
                 buf.extend(self.opcode());
 
                 buf.push(
                     ModRm {
-                        mod_: modrm(Some(src)),
+                        mod_: modrm(Some(RegDataRef::Direct(dst)), Some(src)),
                         reg: dst.id_bits(),
                         rm: src.id_bits(),
                     }

@@ -1,5 +1,6 @@
 use crate::{
     buf::InsnBuf,
+    builders::InsnRecv,
     data::RegDataRef,
     insn::{
         Insn, InsnEncode,
@@ -46,8 +47,8 @@ pub fn hello_world_with_reloc() -> Result<()> {
 
     let mut buf = Vec::new();
 
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi.into()).encode());
 
     obj.add_relocation(
         text,
@@ -64,12 +65,12 @@ pub fn hello_world_with_reloc() -> Result<()> {
     )?;
 
     // 0xABCDEF gets replaced by the relocation
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0xABCDEF), Reg::Rsi).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(len as u32), Reg::Rdx).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0xABCDEF), Reg::Rsi.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(len as u32), Reg::Rdx.into()).encode());
     buf.extend(SyscallInsn.encode());
 
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()).encode());
     buf.extend(SyscallInsn.encode());
 
     obj.section_mut(text)
@@ -109,14 +110,14 @@ pub fn hello_world_no_reloc() -> Result<()> {
 
     let mut buf = Vec::new();
 
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(data_addr as u32), Reg::Rsi).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(len as u32), Reg::Rdx).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(data_addr as u32), Reg::Rsi.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(len as u32), Reg::Rdx.into()).encode());
     buf.extend(SyscallInsn.encode());
 
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()).encode());
     buf.extend(SyscallInsn.encode());
 
     obj.header.e_type = ET_EXEC;
@@ -195,28 +196,29 @@ pub fn echo_no_reloc() -> Result<()> {
     let mut cmp = Vec::new();
     let mut write = Vec::new();
 
-    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax).encode());
-    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
-    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi).encode());
-    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_size as u32), Reg::Rdx).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax.into()).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi.into()).encode());
+    read.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_size as u32), Reg::Rdx.into()).encode());
     read.extend(SyscallInsn.encode());
 
-    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rax), Reg::Rdi).encode());
-    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax).encode());
-    write.extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi).encode());
-    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rdi), Reg::Rdx).encode());
-    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rax), Reg::Rdi.into()).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax.into()).encode());
+    write
+        .extend(MovInsn::DataToReg(RegDataRef::Value32(bss_addr as u32), Reg::Rsi.into()).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rdi), Reg::Rdx.into()).encode());
+    write.extend(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi.into()).encode());
     write.extend(SyscallInsn.encode());
 
-    cmp.extend(CmpInsn(Reg::Eax, RegDataRef::Value32(0)).encode());
-    cmp.extend(JmpInsn::Cond32(JmpCond::LessEqual, write.len() as u32).encode());
+    cmp.extend(CmpInsn(Reg::Eax.into(), RegDataRef::Value32(0)).encode());
+    cmp.extend(JmpInsn::Cond32(JmpCond::LessEqual, write.len() as i32).encode());
 
     buf.extend(read);
     buf.extend(cmp);
     buf.extend(write);
 
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax).encode());
-    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax.into()).encode());
+    buf.extend(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()).encode());
     buf.extend(SyscallInsn.encode());
 
     obj.header.e_type = ET_EXEC;
@@ -303,27 +305,42 @@ pub fn echo_no_reloc_compact() -> Result<()> {
     let bss_addr = 0;
     let bss_len = bss_size as u32;
 
-    read.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax));
-    read.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi));
-    read.add(MovInsn::DataToReg(RegDataRef::Value32(bss_addr), Reg::Rsi));
-    read.add(MovInsn::DataToReg(RegDataRef::Value32(bss_len), Reg::Rdx));
-    read.add(SyscallInsn);
+    read.push(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rax.into()));
+    read.push(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()));
+    read.push(MovInsn::DataToReg(
+        RegDataRef::Value32(bss_addr),
+        Reg::Rsi.into(),
+    ));
+    read.push(MovInsn::DataToReg(
+        RegDataRef::Value32(bss_len),
+        Reg::Rdx.into(),
+    ));
+    read.push(SyscallInsn);
 
-    write.add(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rax), Reg::Rdi));
-    write.add(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax));
-    write.add(MovInsn::DataToReg(RegDataRef::Value32(bss_addr), Reg::Rsi));
-    write.add(MovInsn::DataToReg(RegDataRef::Direct(Reg::Rdi), Reg::Rdx));
-    write.add(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi));
-    write.add(SyscallInsn);
+    write.push(MovInsn::DataToReg(
+        RegDataRef::Direct(Reg::Rax),
+        Reg::Rdi.into(),
+    ));
+    write.push(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rax.into()));
+    write.push(MovInsn::DataToReg(
+        RegDataRef::Value32(bss_addr),
+        Reg::Rsi.into(),
+    ));
+    write.push(MovInsn::DataToReg(
+        RegDataRef::Direct(Reg::Rdi),
+        Reg::Rdx.into(),
+    ));
+    write.push(MovInsn::DataToReg(RegDataRef::Value32(1), Reg::Rdi.into()));
+    write.push(SyscallInsn);
 
     let write_len = write.calculate_length();
 
-    cmp.add(CmpInsn(Reg::Eax, RegDataRef::Value32(0)));
-    cmp.add(JmpInsn::Cond32(JmpCond::LessEqual, write_len as u32));
+    cmp.push(CmpInsn(Reg::Eax.into(), RegDataRef::Value32(0)));
+    cmp.push(JmpInsn::Cond32(JmpCond::LessEqual, write_len as i32));
 
-    end.add(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax));
-    end.add(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi));
-    end.add(SyscallInsn);
+    end.push(MovInsn::DataToReg(RegDataRef::Value32(60), Reg::Rax.into()));
+    end.push(MovInsn::DataToReg(RegDataRef::Value32(0), Reg::Rdi.into()));
+    end.push(SyscallInsn);
 
     let total_len = read.calculate_length()
         + cmp.calculate_length()
@@ -340,18 +357,18 @@ pub fn echo_no_reloc_compact() -> Result<()> {
 
     read[2] = Insn::Mov(MovInsn::DataToReg(
         RegDataRef::Value32(bss_addr as u32),
-        Reg::Rsi,
+        Reg::Rsi.into(),
     ));
 
     write[2] = Insn::Mov(MovInsn::DataToReg(
         RegDataRef::Value32(bss_addr as u32),
-        Reg::Rsi,
+        Reg::Rsi.into(),
     ));
 
-    buf.add_all(read);
-    buf.add_all(cmp);
-    buf.add_all(write);
-    buf.add_all(end);
+    buf.extend(read);
+    buf.extend(cmp);
+    buf.extend(write);
+    buf.extend(end);
 
     obj.header.e_type = ET_EXEC;
     obj.header.e_phoff = obj.class().file_header_size() as u64;

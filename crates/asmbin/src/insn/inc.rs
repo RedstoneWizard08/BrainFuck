@@ -37,7 +37,7 @@ impl InsnEncode for IncInsn {
 
         buf.push(
             ModRm {
-                mod_: modrm(Some(self.0)),
+                mod_: modrm(None, Some(self.0)),
                 reg: 0,
                 rm: self.0.id_bits(),
             }

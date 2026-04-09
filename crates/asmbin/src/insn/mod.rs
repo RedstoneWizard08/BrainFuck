@@ -99,7 +99,7 @@ impl ModRm {
     }
 }
 
-pub fn encode_rex(a: &Option<Reg>, b: &Option<RegDataRef>) -> u8 {
+pub fn encode_rex(a: &Option<RegDataRef>, b: &Option<RegDataRef>) -> u8 {
     let res = 0b01000000;
     let w = 1 << 3;
 
@@ -130,51 +130,54 @@ pub const fn encode_rex_for_reg(reg: Reg) -> u8 {
     res | wrxb
 }
 
-pub const fn modrm(b: Option<RegDataRef>) -> u8 {
+pub const fn modrm(a: Option<RegDataRef>, b: Option<RegDataRef>) -> u8 {
     match b {
         Some(
-            RegDataRef::Direct(_)
-            | RegDataRef::Value8(_)
+            RegDataRef::Value8(_)
             | RegDataRef::Value16(_)
             | RegDataRef::Value32(_)
             | RegDataRef::Value64(_),
-        )
-        | None => 0b11,
+        ) => match a {
+            Some(it) => modrm(None, Some(it)),
+            None => 0b11,
+        },
 
+        Some(RegDataRef::Direct(_)) | None => 0b11,
         Some(RegDataRef::RegOffset8(_, _)) => 0b01,
         Some(RegDataRef::RegOffset32(_, _)) => 0b10,
-
         Some(RegDataRef::DirectValue(_)) => 0b00,
     }
 }
 
 pub struct EncodeOpts {
-    opcode: u8,
-    reg: Reg,
+    opcode: Vec<u8>,
+    reg: RegDataRef,
     data: Option<RegDataRef>,
     skip_modrm: bool,
+    invert_operands: bool,
 
     /// Pass a custom value to modrm's reg field, moving the register to the rm
     /// field and excluding the data from it.
     modrm_reg: Option<u8>,
 }
 
-pub fn encode_insn(opcode: u8, reg: Reg, data: Option<RegDataRef>, skip_modrm: bool) -> Vec<u8> {
+pub fn encode_insn(
+    opcode: Vec<u8>,
+    reg: impl Into<RegDataRef>,
+    data: Option<RegDataRef>,
+    skip_modrm: bool,
+) -> Vec<u8> {
     encode_insn_with(EncodeOpts {
         opcode,
-        reg,
+        reg: reg.into(),
         data,
         skip_modrm,
         modrm_reg: None,
+        invert_operands: false,
     })
 }
 
-pub fn encode_insn_with(mut opts: EncodeOpts) -> Vec<u8> {
-    opts.data = opts.data.map(|mut it| {
-        it.simplify();
-        it
-    });
-
+pub fn encode_insn_with(opts: EncodeOpts) -> Vec<u8> {
     let needs_rex = opts.reg.needs_rex() || opts.data.is_some_and(|it| it.needs_rex());
     let mut buf = Vec::new();
 
@@ -182,25 +185,25 @@ pub fn encode_insn_with(mut opts: EncodeOpts) -> Vec<u8> {
         buf.push(encode_rex(&Some(opts.reg), &opts.data));
     }
 
-    buf.push(opts.opcode);
+    buf.extend(opts.opcode);
 
     if !opts.skip_modrm {
         buf.push(
             if let Some(reg) = opts.modrm_reg {
                 ModRm {
-                    mod_: modrm(opts.data),
+                    mod_: modrm(Some(opts.reg), opts.data),
                     reg,
                     rm: opts.reg.id_bits(),
                 }
             } else if opts.data.is_some_and(|it| it.is_value()) {
                 ModRm {
-                    mod_: modrm(opts.data),
+                    mod_: modrm(Some(opts.reg), opts.data),
                     reg: opts.data.as_ref().unwrap().id_bits(),
                     rm: opts.reg.id_bits(),
                 }
             } else {
                 ModRm {
-                    mod_: modrm(opts.data),
+                    mod_: modrm(Some(opts.reg), opts.data),
                     reg: opts.reg.id_bits(),
                     rm: opts.data.map(|it| it.id_bits()).unwrap_or(0),
                 }
@@ -209,8 +212,16 @@ pub fn encode_insn_with(mut opts: EncodeOpts) -> Vec<u8> {
         );
     }
 
+    if opts.invert_operands {
+        buf.extend(opts.reg.extra_bytes());
+    }
+
     if let Some(data) = opts.data {
         buf.extend(data.extra_bytes());
+    }
+
+    if !opts.invert_operands {
+        buf.extend(opts.reg.extra_bytes());
     }
 
     buf

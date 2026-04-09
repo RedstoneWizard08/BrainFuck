@@ -8,8 +8,8 @@ pub enum JmpInsn {
     Short(i8),            // relative jump, signed 1-byte offset
     Near(i32),            // relative jump, signed 4-byte offset
     Indirect(RegDataRef), // absolute jump to arg (rip = arg)
-    Cond8(JmpCond, u8),   // absolute conditional jump to a 1-byte offset into the text section
-    Cond32(JmpCond, u32), // absolute conditional jump to a 4-byte offset into the text section
+    Cond8(JmpCond, i8),   // absolute conditional jump to a 1-byte offset into the text section
+    Cond32(JmpCond, i32), // absolute conditional jump to a 4-byte offset into the text section
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -87,7 +87,7 @@ impl InsnEncode for JmpInsn {
                 let mut buf = Vec::new();
 
                 buf.extend(self.opcode());
-                buf.push(to);
+                buf.push(to as u8);
 
                 buf
             }
@@ -139,7 +139,7 @@ impl InsnEncode for JmpInsn {
                     panic!("jmp does not support immediate operands!")
                 } else {
                     ModRm {
-                        mod_: modrm(Some(to)),
+                        mod_: modrm(None, Some(to)),
                         reg: 4,
                         rm: to.id_bits(),
                     }

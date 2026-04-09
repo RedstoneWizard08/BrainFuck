@@ -1,6 +1,7 @@
 #![feature(const_trait_impl)]
 
 pub mod buf;
+pub mod builders;
 pub mod data;
 pub mod example;
 pub mod insn;
