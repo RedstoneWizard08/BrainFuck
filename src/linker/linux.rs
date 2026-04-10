@@ -25,10 +25,10 @@ pub fn get_dynamic_linker(
     let env = target_env.unwrap_or(Environment::host().to_string());
 
     if env == "android" {
-        return "/system/bin/linker64".to_string();
+        return "/system/bin/linker64".into();
     }
 
-    if target_arch == Some("x86_64".to_string()) {
+    if target_arch == Some("x86_64".into()) {
         return format!("{}/lib64/ld-linux-x86-64.so.2", prefix);
     }
 
@@ -42,7 +42,7 @@ pub fn get_dynamic_linker(
         format!(
             "{}/lib/ld-linux-{}.so.1",
             prefix,
-            target_arch.unwrap_or(std::env::consts::ARCH.to_string())
+            target_arch.unwrap_or(std::env::consts::ARCH.into())
         )
     }
 }
@@ -64,22 +64,22 @@ pub fn get_linker_args(
         format!(
             "-L{}/lib/{}-{}-{}",
             prefix,
-            target_arch.clone().unwrap_or(ARCH.to_string()),
-            target_os.clone().unwrap_or(OS.to_string()),
+            target_arch.clone().unwrap_or(ARCH.into()),
+            target_os.clone().unwrap_or(OS.into()),
             target_env.clone().unwrap_or(env.clone())
         ),
         format!(
             "-L{}/{}-{}-{}/lib",
             prefix,
-            target_arch.clone().unwrap_or(ARCH.to_string()),
-            target_os.unwrap_or(OS.to_string()),
+            target_arch.clone().unwrap_or(ARCH.into()),
+            target_os.unwrap_or(OS.into()),
             target_env.clone().unwrap_or(env)
         ),
-        "--dynamic-linker".to_string(),
+        "--dynamic-linker".into(),
         get_dynamic_linker(prefix, target_arch, target_env),
-        "--pie".to_string(),
-        "-O2".to_string(),
-        "-lc".to_string(),
+        "--pie".into(),
+        "-O2".into(),
+        "-lc".into(),
     ]
 }
 

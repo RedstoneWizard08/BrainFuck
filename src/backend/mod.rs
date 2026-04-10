@@ -1,6 +1,9 @@
 #[cfg(feature = "asm")]
 pub mod asm;
 
+#[cfg(feature = "llvm")]
+pub mod llvm;
+
 #[cfg(feature = "asm")]
 pub mod legacy_asm;
 
@@ -80,11 +83,25 @@ pub enum Backend {
     #[cfg_attr(all(not(feature = "asm"), feature = "cranelift"), default)]
     Cranelift,
 
+    /// The LLVM codegen backend.
+    /// Outputs an object file.
+    #[cfg(feature = "llvm")]
+    #[cfg_attr(
+        all(not(feature = "asm"), not(feature = "cranelift"), feature = "llvm"),
+        default
+    )]
+    Llvm,
+
     /// The WASM codegen backend.
     /// Outputs a WASM binary.
     #[cfg(feature = "wasm")]
     #[cfg_attr(
-        all(not(feature = "asm"), not(feature = "cranelift"), feature = "wasm"),
+        all(
+            not(feature = "asm"),
+            not(feature = "cranelift"),
+            not(feature = "llvm"),
+            feature = "wasm"
+        ),
         default
     )]
     Wasm,

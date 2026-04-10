@@ -143,7 +143,7 @@ macro_rules! insns {
         pub trait AsmBuilder {
             fn insns(&mut self) -> &mut Vec<Insn>;
 
-            $(paste::paste! {
+            $(pastey::paste! {
                 fn [<$name: lower>](&mut self $(, $($param: impl Into<$ty>),*)?) {
                     self.insns().push(Insn::$name $(($($param.into()),*))?);
                 }

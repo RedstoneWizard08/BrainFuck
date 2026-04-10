@@ -46,6 +46,11 @@ pub enum Commands {
         /// The path to the file to run.
         file: PathBuf,
 
+        /// Use the LLVM backend instead of Cranelift for JIT compilation.
+        #[cfg(feature = "llvm")]
+        #[arg(long)]
+        llvm: bool,
+
         #[command(flatten)]
         opts: CompilerOptions,
     },
@@ -92,7 +97,12 @@ impl Commands {
     pub fn run(self) -> Result<()> {
         match self {
             #[cfg(feature = "cranelift")]
-            Self::Jit { file, mut opts } => {
+            Self::Jit {
+                file,
+                mut opts,
+                #[cfg(feature = "llvm")]
+                llvm,
+            } => {
                 // Not yet supported on this backend
                 opts.disable(crate::backend::Optimization::Scanners);
 
@@ -106,7 +116,24 @@ impl Commands {
                     crate::opt::v2::optimize_v2(&actions, &opts)
                 };
 
-                crate::backend::cranelift::jit_compile_run(&actions, opts, None)
+                #[cfg(feature = "llvm")]
+                {
+                    if llvm {
+                        crate::backend::llvm::compile(
+                            target_lexicon::Triple::host(),
+                            opts,
+                            actions,
+                            true,
+                        );
+                    } else {
+                        crate::backend::cranelift::jit_compile_run(&actions, opts, None);
+                    }
+                }
+
+                #[cfg(not(feature = "llvm"))]
+                {
+                    crate::backend::cranelift::jit_compile_run(&actions, opts, None);
+                }
             }
 
             #[cfg(feature = "interp")]
@@ -181,6 +208,23 @@ impl Commands {
                             .unwrap_or(target_lexicon::Triple::host());
 
                         let obj = crate::backend::cranelift::aot_compile(&actions, &target, opts);
+
+                        if _object {
+                            fs::write(output, obj)?;
+                        } else {
+                            link::link_aot(obj, output, &target);
+                        }
+                    }
+
+                    #[cfg(feature = "llvm")]
+                    Backend::Llvm => {
+                        let target = _target
+                            .map(|it| target_lexicon::Triple::from_str(&it).ok())
+                            .flatten()
+                            .unwrap_or(target_lexicon::Triple::host());
+
+                        let obj =
+                            crate::backend::llvm::compile(target.clone(), opts, actions, false);
 
                         if _object {
                             fs::write(output, obj)?;

@@ -25,3 +25,5 @@ bf.zip
 /*.elf
 /cmp.py
 /*.bin
+/llvm
+/a

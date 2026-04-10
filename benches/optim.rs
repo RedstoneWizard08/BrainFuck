@@ -14,7 +14,7 @@ macro_rules! optim_bench {
                     ..Default::default()
                 };
 
-                let prog = bf::parse(paste::paste! { [<$name:upper>] });
+                let prog = bf::parse(pastey::paste! { [<$name:upper>] });
 
                 b.iter(|| {
                     std::hint::black_box(Optimizer::new(

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "asm", "cranelift", "wasm", "interp"]
+default = ["cli", "testing", "asm", "cranelift", "llvm", "wasm", "interp"]
 
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]
@@ -13,7 +13,20 @@ cli = ["dep:clap", "dep:pretty_env_logger"]
 testing = []
 
 # Support AOT & JIT compilation with Cranelift.
-cranelift = ["dep:cranelift", "dep:cranelift-codegen", "dep:cranelift-jit", "dep:cranelift-module", "dep:cranelift-native", "dep:cranelift-object", "dep:target-lexicon", "dep:lnk", "dep:which"]
+cranelift = [
+    "dep:cranelift",
+    "dep:cranelift-codegen",
+    "dep:cranelift-jit",
+    "dep:cranelift-module",
+    "dep:cranelift-native",
+    "dep:cranelift-object",
+    "dep:target-lexicon",
+    "dep:lnk",
+    "dep:which",
+]
+
+# Support AOT & JIT compilation with LLVM.
+llvm = ["dep:inkwell", "dep:target-lexicon"]
 
 # Support WASM interop.
 web = ["dep:wasm-bindgen", "dep:js-sys", "dep:wasm-bindgen-futures"]
@@ -39,40 +52,57 @@ required-features = ["cli"]
 anyhow = "1.0.102"
 asmbin = { version = "0.1.0", path = "crates/asmbin" }
 clap = { version = "4.6.0", features = ["derive"], optional = true }
-clap-verbosity-flag = { version = "3.0.4", default-features = false, features = ["log"] }
-cranelift = { version = "0.129.1", optional = true }
-cranelift-codegen = { version = "0.129.1", optional = true, features = ["capstone", "core", "disas", "isle-errors", "x86"] }
-cranelift-jit = { version = "0.129.1", optional = true }
-cranelift-module = { version = "0.129.1", optional = true }
-cranelift-native = { version = "0.129.1", optional = true }
-cranelift-object = { version = "0.129.1", optional = true }
+clap-verbosity-flag = { version = "3.0.4", default-features = false, features = [
+    "log",
+] }
+cranelift = { version = "0.130.1", optional = true }
+cranelift-codegen = { version = "0.130.1", optional = true, features = [
+    "capstone",
+    "core",
+    "disas",
+    "isle-errors",
+    "x86",
+] }
+cranelift-jit = { version = "0.130.1", optional = true }
+cranelift-module = { version = "0.130.1", optional = true }
+cranelift-native = { version = "0.130.1", optional = true }
+cranelift-object = { version = "0.130.1", optional = true }
 enum-display = "0.2.1"
+inkwell = { version = "0.8.0", git = "https://github.com/TheDan64/inkwell", rev = "832a4487ee4010a957f5143c7d92242d2ffa22a5", features = [
+    "llvm21-1",
+], optional = true }
 itertools = "0.14.0"
 js-sys = { version = "0.3.91", optional = true }
 log = "0.4.29"
-object = { version = "0.39.0", features = ["write", "core", "alloc", "build", "build_core"] }
+object = { version = "0.39.0", features = [
+    "write",
+    "core",
+    "alloc",
+    "build",
+    "build_core",
+] }
 once_cell = "1.21.4"
 parking_lot = { version = "0.12.5", features = ["owning_ref"] }
-paste = "1.0.15"
+pastey = "0.2.1"
 pretty_env_logger = { version = "0.5.0", optional = true }
-ron = "0.12.0"
+ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_stacker = "0.1.14"
 target-lexicon = { version = "0.13.5", optional = true }
 tempfile = "3.27.0"
 wasm-bindgen = { version = "0.2.114", optional = true }
-wasm-bindgen-futures = { version = "0.4.64", optional = true }
-wasm-encoder = { version = "0.245.1", optional = true }
-wasmparser = { version = "0.245.1", optional = true }
+wasm-bindgen-futures = { version = "0.4.68", optional = true }
+wasm-encoder = { version = "0.246.2", optional = true }
+wasmparser = { version = "0.246.2", optional = true }
 which = { version = "8.0.2", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-lnk = { version = "0.6.3", optional = true }
+lnk = { version = "0.6.4", optional = true }
 
 [dev-dependencies]
 criterion = "0.8.2"
 dir-test = "0.4.1"
-paste = "1.0.15"
+pastey = "0.2.1"
 
 [[bench]]
 name = "interpret"

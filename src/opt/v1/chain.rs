@@ -1,4 +1,7 @@
-use crate::{backend::Optimization, opt::v1::{ChainType, Optimizer}};
+use crate::{
+    backend::Optimization,
+    opt::v1::{ChainType, Optimizer},
+};
 
 impl<'a> Optimizer<'a> {
     pub(super) fn chains(&mut self) {

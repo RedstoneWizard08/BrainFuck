@@ -26,25 +26,9 @@ use crate::{
 const RELOCATOR: u32 = 0xCAFEBABE;
 const TAPE_PTR: Reg = Reg::Rbx;
 
-pub struct Rodata {
-    pub name: String,
-    pub data: Vec<String>,
-    pub align: usize,
-}
-
-impl Rodata {
-    pub fn stringify(&self) -> String {
-        let mut s = self.data.join("\n");
-
-        s.insert_str(0, &format!(".align {}\n{}:\n", self.align, self.name));
-        s
-    }
-}
-
 #[allow(unused)]
 pub struct CodeGenerator<'a> {
     opts: &'a CompilerOptions,
-    rodata: Vec<Rodata>,
     known_nonzero: bool,
     known_zero: bool,
 }
@@ -53,7 +37,6 @@ impl<'a> CodeGenerator<'a> {
     pub fn run(opts: &'a CompilerOptions, actions: &Vec<OptAction>) -> Vec<u8> {
         let mut me = Self {
             opts,
-            rodata: Vec::new(),
             known_nonzero: false,
             known_zero: false,
         };

@@ -12,7 +12,7 @@ macro_rules! opts {
 
 macro_rules! jit_single_bench {
     (compile; $c: ident: $name: ident [$level: expr] = $display: expr) => {
-        paste::paste! {
+        pastey::paste! {
             fn [<compile_ $name _opt_ $level>](c: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
                 let opts = opts!($level);
                 let program = bf::parse([<$name:upper>]);
@@ -35,7 +35,7 @@ macro_rules! jit_single_bench {
     };
 
     (run; $c: ident: $name: ident [$level: expr] = $display: expr) => {
-        paste::paste! {
+        pastey::paste! {
             fn [<run_ $name _opt_ $level>](c: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>) {
                 let opts = opts!($level);
                 let program = bf::parse([<$name:upper>]);

@@ -245,7 +245,6 @@ impl<'a> Optimizer<'a> {
         }
 
         self.run(Optimization::SetAdd);
-        self.run(Optimization::LoopUnroll);
     }
 
     pub fn run_all(mut self) -> Self {
