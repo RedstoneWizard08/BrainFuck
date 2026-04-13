@@ -1,5 +1,7 @@
 {
   "repo_notes": [{
     "content": "Make sure to cover all source files and backends - document how all the backends work, how the arena allocator works, and especially how the asmbin crate works (including the macros)."
+  }, {
+    "content": "Don't forget to check AGENTS.md! :>"
   }]
 }
