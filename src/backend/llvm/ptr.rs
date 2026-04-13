@@ -1,3 +1,5 @@
+//! Pointer manipulation code generation for the LLVM backend.
+
 use inkwell::values::BasicValue;
 
 use crate::backend::llvm::CodeGenerator;

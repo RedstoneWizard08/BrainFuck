@@ -1,8 +1,19 @@
+//! Legacy ASM backend that generates x86-64 assembly source files.
+//!
+//! This backend compiles Brainf*ck to readable x86-64 assembly code (.s files)
+//! that can be assembled and linked separately.
+
+/// Copy loop optimization module
 mod copy;
+/// Instruction representation and encoding module
 mod insn;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
+/// Pointer manipulation implementation module
 mod ptr;
+/// Value operation implementation module
 mod value;
 
 use crate::{

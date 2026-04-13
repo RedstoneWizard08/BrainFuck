@@ -1,7 +1,17 @@
+//! Modern ASM backend that generates native ELF executables directly.
+//!
+//! This backend compiles Brainf*ck directly to x86-64 assembly and links
+//! it into executable ELF binaries.
+
+/// Copy loop optimization module
 mod copy;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
+/// Pointer manipulation implementation module
 mod ptr;
+/// Value operation implementation module
 mod value;
 
 use asmbin::{

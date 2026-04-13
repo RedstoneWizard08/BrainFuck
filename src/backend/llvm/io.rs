@@ -1,3 +1,5 @@
+//! I/O operation code generation for the LLVM backend.
+
 use crate::backend::llvm::CodeGenerator;
 use inkwell::values::BasicValue;
 

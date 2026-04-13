@@ -1,3 +1,5 @@
+//! Instruction buffer for collecting and encoding x86-64 instructions.
+
 use std::ops::{Index, IndexMut};
 
 use crate::insn::{Insn, InsnEncode, InsnInfo};

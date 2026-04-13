@@ -1,3 +1,5 @@
+//! Example code and demonstrations using the asmbin crate.
+
 use crate::{
     buf::InsnBuf,
     builders::InsnRecv,

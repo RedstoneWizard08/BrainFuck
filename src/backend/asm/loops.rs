@@ -1,3 +1,5 @@
+//! Loop construct code generation for the ASM backend.
+
 use asmbin::{
     buf::InsnBuf,
     builders::{InsnBuilder, InsnRecv},

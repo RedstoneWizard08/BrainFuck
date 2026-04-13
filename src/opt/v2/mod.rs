@@ -1,17 +1,36 @@
+//! Version 2 optimizer with advanced transformation strategies.
+//!
+//! This module provides a more sophisticated optimization backend with
+//! arena allocation and advanced grouping strategies.
+
+/// Arena allocator module for efficient memory management
 pub mod arena;
+/// Base optimizer infrastructure
 pub mod base;
 
+/// Chain math operations optimization pass
 mod chain;
+/// Combination optimization passes
 mod combos;
+/// Copy loop pattern detection and optimization
 mod copy_loop;
+/// Dead code removal pass
 mod dead_code;
+/// Loop unrolling optimization
 mod loop_unroll;
+/// Loop-related optimizations
 mod loops;
+/// Offset-based operation optimizations
 mod offsets;
+/// Scanner pattern optimization
 mod scan;
+/// Set-and-move operation optimization
 mod set_move;
+/// Code simplification pass
 mod simplify;
+/// Sort offset operations by their offset
 mod sort_offset;
+/// Remove useless code at end
 mod useless_end;
 mod useless_ops;
 

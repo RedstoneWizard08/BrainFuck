@@ -1,15 +1,43 @@
+//! Direct interpreter for Brainf*ck programs.
+//!
+//! This module provides an interpreter that directly executes Brainf*ck
+//! programs without code generation, useful for rapid prototyping and testing.
+//!
+//! # Examples
+//!
+//! The interpreter can be used to directly execute Brainf*ck programs:
+//!
+//! ```no_run
+//! use bf::parse;
+//! // Parse a simple program that outputs 'A' (65)
+//! let program = "++++++++[>++++++++<-]>.";
+//! let actions = parse(program);
+//! // The interpreter would execute this directly
+//! ```
+
 use crate::opt::action::{OptAction, ValueAction};
 use std::io::{Read, Write};
 
+/// The size of the memory tape available to Brainf*ck programs
 const TAPE_SIZE: usize = u16::MAX as usize;
 const TAPE_SIZE_I: i64 = TAPE_SIZE as i64;
 
+/// Represents the execution state of a Brainf*ck program.
+///
+/// Holds the memory tape and the data pointer during program execution.
+///
+/// # Examples
+///
+/// A tape starts at position 0 with all cells initialized to 0
 struct ProgramState {
+    /// The memory tape (initialized to all zeros)
     tape: [u8; TAPE_SIZE + 1],
+    /// The current position on the tape
     tape_ptr: i64,
 }
 
 impl ProgramState {
+    /// Creates a new program state with an empty tape and starting pointer at 0.
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
@@ -18,6 +46,7 @@ impl ProgramState {
         }
     }
 
+    /// Adds a value to the current cell on the tape.
     #[inline(always)]
     pub const fn add(&mut self, amnt: i64) {
         let ptr = wrap_to_index(self.tape_ptr);
@@ -25,6 +54,7 @@ impl ProgramState {
         self.tape[ptr] = wrapping_conv((self.tape[ptr] as i64) + amnt);
     }
 
+    /// Adds a value to a cell at an offset from the current pointer.
     #[inline(always)]
     pub const fn add_offset(&mut self, amnt: i64, offset: i64) {
         let ptr = wrap_to_index(self.tape_ptr + offset);

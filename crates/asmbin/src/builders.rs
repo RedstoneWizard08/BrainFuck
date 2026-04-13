@@ -1,3 +1,5 @@
+//! Builder traits for conveniently constructing x86-64 instructions.
+
 use crate::{
     buf::InsnBuf,
     data::RegDataRef,

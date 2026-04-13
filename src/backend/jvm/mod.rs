@@ -1,7 +1,17 @@
+//! JVM bytecode generation backend.
+//!
+//! This backend compiles Brainf*ck to JVM bytecode for execution
+//! on the Java Virtual Machine.
+
+/// Copy loop optimization module
 mod copy;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
+/// Pointer manipulation implementation module
 mod ptr;
+/// Value operation implementation module
 mod value;
 
 use std::{borrow::Cow, collections::HashMap, io::Cursor, ops::Div};

@@ -1,3 +1,5 @@
+//! Benchmarks for instruction buffer performance.
+
 use std::iter;
 
 use bf::opt::v2::base::{BfInsn, InsnBuf};

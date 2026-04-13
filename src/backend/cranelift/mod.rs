@@ -1,8 +1,19 @@
+//! Cranelift-based code generation backend.
+//!
+//! This backend uses the Cranelift compiler infrastructure to compile
+//! Brainf*ck to object files that can be linked into executables.
+
+/// Copy loop optimization module
 mod copy;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
-mod ptr;
+/// Utility function for Cranelift code generation
 mod util;
+/// Pointer manipulation implementation module
+mod ptr;
+/// Value operation implementation module
 mod value;
 
 use crate::{

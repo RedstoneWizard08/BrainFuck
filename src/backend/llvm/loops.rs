@@ -1,3 +1,5 @@
+//! Loop construct code generation for the LLVM backend.
+
 use crate::{backend::llvm::CodeGenerator, opt::action::OptAction};
 use inkwell::IntPredicate;
 

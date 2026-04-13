@@ -1,16 +1,39 @@
+//! x86-64 instruction representations and encoding utilities.
+//!
+//! This module provides type-safe representations of x86-64 instructions
+//! and utilities for encoding them into machine code.
+
+/// ADD instruction implementation
 pub mod add;
+/// CMP (compare) instruction implementation
 pub mod cmp;
+/// DEC (decrement) instruction implementation
 pub mod dec;
+/// IMUL (signed multiply) instruction implementation
 pub mod imul;
+/// INC (increment) instruction implementation
 pub mod inc;
+/// JMP (jump) instruction implementation
 pub mod jmp;
+/// LEA (load effective address) instruction implementation
 pub mod lea;
+/// MOV (move) instruction implementation
 pub mod mov;
+/// REPNE (repeat not equal) instruction implementation
 pub mod repne;
+/// SUB (subtract) instruction implementation
 pub mod sub;
+/// SYSCALL instruction implementation
 pub mod syscall;
+/// XOR (exclusive or) instruction implementation
 pub mod xor;
 
+/// Macro for generating the unified Insn enum and its implementations.
+///
+/// This macro creates:
+/// - An `Insn` enum variant for each instruction type
+/// - `InsnInfo` trait implementation for all instructions
+/// - `InsnEncode` trait implementation for all instructions<br>/// - `From` implementations for automatic instruction conversion
 macro_rules! insn_wrapper {
     ($($insn: ident),* $(,)?) => {
         pastey::paste! {

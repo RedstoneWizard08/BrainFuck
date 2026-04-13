@@ -1,3 +1,5 @@
+//! Benchmarks for optimization pass performance.
+
 use bf::opt::v1::Optimizer;
 use criterion::criterion_main;
 

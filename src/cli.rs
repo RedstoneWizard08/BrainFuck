@@ -1,3 +1,22 @@
+//! Command-line interface for the Brainf*ck compiler.
+//!
+//! This module provides the CLI structure and command handling for the compiler.
+//!
+//! # Examples
+//!
+//! The CLI supports multiple subcommands:
+//!
+//! - `jit`: JIT compile and run a program
+//! - `interpret`: Interpret a program directly
+//! - `aot`: Ahead-of-time compilation to an executable
+//!
+//! Usage:
+//! ```sh
+//! bf jit program.bf
+//! bf interpret program.bf
+//! bf aot -o output program.bf
+//! ```
+
 use crate::{
     backend::{Backend, CompilerOptions},
     parse,
@@ -13,6 +32,20 @@ use std::str::FromStr;
 #[cfg(feature = "cranelift")]
 use crate::link;
 
+/// The main CLI structure for the Brainf*ck compiler.
+///
+/// Provides subcommands for JIT compilation, interpretation, and ahead-of-time compilation.
+///
+/// # Examples
+///
+/// Parse and run the CLI:
+/// ```no_run
+/// use bf::cli::Cli;
+/// use clap::Parser;
+///
+/// let cli = Cli::parse();
+/// cli.run().unwrap();
+/// ```
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
@@ -26,6 +59,7 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Run the CLI with parsed arguments.
     pub fn run(self) -> Result<()> {
         pretty_env_logger::formatted_builder()
             .filter_level(self.verbosity.log_level_filter())
@@ -35,6 +69,29 @@ impl Cli {
     }
 }
 
+/// Available CLI commands.
+///
+/// # Examples
+///
+/// JIT compile a program:
+/// ```sh
+/// bf jit hello.bf
+/// ```
+///
+/// Interpret a program:
+/// ```sh
+/// bf interpret hello.bf
+/// ```
+///
+/// Compile to an executable with optimizations:
+/// ```sh
+/// bf aot -O 2 -o hello hello.bf
+/// ```
+///
+/// Compile with a specific backend:
+/// ```sh
+/// bf aot -B cranelift program.bf
+/// ```
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Run a BrainFuck program using JIT compilation.
@@ -94,6 +151,7 @@ pub enum Commands {
 }
 
 impl Commands {
+    /// Execute the selected command.
     pub fn run(self) -> Result<()> {
         match self {
             #[cfg(feature = "cranelift")]

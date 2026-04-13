@@ -1,3 +1,5 @@
+//! Cell value manipulation code generation for the Cranelift backend.
+
 use crate::{backend::cranelift::CodeGenerator, interp::wrapping_conv};
 use cranelift::prelude::{InstBuilder, MemFlags};
 use cranelift_module::Module;

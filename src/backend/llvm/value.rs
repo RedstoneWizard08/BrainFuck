@@ -1,3 +1,5 @@
+//! Cell value manipulation code generation for the LLVM backend.
+
 use crate::backend::llvm::CodeGenerator;
 use inkwell::values::{BasicValue, IntValue, PointerValue};
 

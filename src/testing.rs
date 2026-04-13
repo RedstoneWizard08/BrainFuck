@@ -1,17 +1,35 @@
+//! Testing utilities and fixtures for the Brainf*ck compiler.
+//!
+//! This module provides helpers and shared I/O facilities for testing compilation
+//! and execution of Brainf*ck programs.
+
 #![allow(static_mut_refs)]
 
 use crate::backend::CustomIo;
 
+/// Static mutable buffer for captured stdout during tests
 static mut STDOUT: Vec<u8> = Vec::new();
+/// Static mutable buffer for captured stdin during tests
 static mut STDIN: Vec<u8> = Vec::new();
 
+/// EOF constant for end-of-file signaling
 const EOF: i32 = -1;
 
+/// Clears the I/O buffers between tests.
 pub unsafe fn clear_io() {
     unsafe { STDOUT.clear() };
     unsafe { STDIN.clear() };
 }
 
+/// Captures putchar() output during testing.
+///
+/// # Arguments
+///
+/// * `c` - The character code to write
+///
+/// # Returns
+///
+/// Returns the character code that was written
 pub unsafe extern "C" fn buf_putchar(c: i32) -> i32 {
     // convert to a u8 since ascii characters are u8 anyway
     unsafe {

@@ -1,5 +1,8 @@
+//! Android linker-specific configuration and utilities.
+
 use std::env::consts::{ARCH, OS};
 
+/// Get Android linker arguments for the specified target.
 pub fn get_linker_args(
     prefix_dir: Option<String>,
     target_arch: Option<String>,

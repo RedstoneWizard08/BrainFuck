@@ -1,3 +1,5 @@
+//! Copy loop code generation for the ASM backend.
+
 use crate::backend::asm::CodeGenerator;
 use asmbin::{buf::InsnBuf, builders::InsnBuilder, reg::Reg};
 

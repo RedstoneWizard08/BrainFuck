@@ -1,3 +1,5 @@
+//! Copy loop code generation for the Cranelift backend.
+
 use crate::backend::cranelift::CodeGenerator;
 use cranelift::prelude::{InstBuilder, MemFlags};
 use cranelift_module::Module;

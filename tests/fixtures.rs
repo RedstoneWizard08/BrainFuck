@@ -1,3 +1,8 @@
+//! Integration tests for Brainf*ck program compilation and execution.
+//!
+//! This module runs tests by compiling and executing fixture files from the test directory,
+//! comparing output against expected output files.
+
 #![cfg(feature = "cranelift")]
 
 use bf::{

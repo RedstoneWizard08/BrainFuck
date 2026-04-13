@@ -1,3 +1,5 @@
+//! Utility functions and helper types for assembly binary manipulation.
+
 #[macro_export]
 macro_rules! any_needs_64 {
     ($($args: ident),*) => {

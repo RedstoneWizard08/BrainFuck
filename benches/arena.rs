@@ -1,3 +1,5 @@
+//! Benchmarks for arena allocator performance in the V2 optimizer.
+
 use bf::opt::v2::{arena::Arena, base::BfInsn};
 use criterion::{Criterion, criterion_group, criterion_main};
 

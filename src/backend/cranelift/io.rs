@@ -1,3 +1,5 @@
+//! I/O operation code generation for the Cranelift backend.
+
 use crate::backend::cranelift::CodeGenerator;
 use cranelift::prelude::{InstBuilder, types};
 use cranelift_module::Module;

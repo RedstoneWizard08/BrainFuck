@@ -1,3 +1,5 @@
+//! Benchmarks for the interpreter performance.
+
 use std::io::Cursor;
 
 use bf::{interp::interpret, opt::v1::Optimizer, parse};

@@ -1,25 +1,61 @@
+//! Code generation backends for various target platforms.
+//!
+//! This module provides implementations of multiple code generation backends
+//! for compiling Brainf*ck programs to different target platforms including
+//! native assembly, LLVM IR, Cranelift, WebAssembly, and JVM bytecode.
+
 #[cfg(feature = "asm")]
+/// Modern ASM backend for direct ELF executable generation
 pub mod asm;
 
 #[cfg(feature = "llvm")]
+/// LLVM IR code generation backend
 pub mod llvm;
 
 #[cfg(feature = "asm")]
+/// Legacy ASM backend for x86-64 assembly output
 pub mod legacy_asm;
 
 #[cfg(feature = "cranelift")]
+/// Cranelift codegen backend for object file generation
 pub mod cranelift;
 
 #[cfg(feature = "wasm")]
+/// WebAssembly code generation backend
 pub mod wasm;
 
 #[cfg(feature = "jvm")]
+/// JVM bytecode generation backend
 pub mod jvm;
 
 use enum_display::EnumDisplay;
 use serde::Serialize;
 use std::path::PathBuf;
 
+/// Compilation options controlling code generation and optimization behavior.
+///
+/// This structure holds all user-configurable compilation parameters including
+/// output paths, optimization settings, target backend selection, and tape size.
+///
+/// # Examples
+///
+/// Create default compilation options:
+///
+/// ```no_run
+/// use bf::backend::CompilerOptions;
+///
+/// let opts = CompilerOptions::default();
+/// ```
+///
+/// Create options with a specific backend and optimization level:
+///
+/// ```no_run
+/// use bf::backend::{CompilerOptions, Backend};
+///
+/// let mut opts = CompilerOptions::default();
+/// opts.backend = Backend::Asm;
+/// opts.opt_level = 2;
+/// ```
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "cli", derive(clap::Args))]
 pub struct CompilerOptions {
@@ -64,6 +100,23 @@ pub struct CompilerOptions {
     pub opt_v1: bool,
 }
 
+/// Available code generation backends for Brainf*ck compilation.
+///
+/// Each backend targets a different platform or intermediate representation
+///
+/// # Examples
+///
+/// The ASM backend generates native ELF executables directly:
+/// ```no_run
+/// use bf::backend::Backend;
+/// let backend = Backend::Asm;
+/// ```
+///
+/// The WASM backend generates WebAssembly modules:
+/// ```no_run
+/// use bf::backend::Backend;
+/// let backend = Backend::Wasm;
+/// ```
 #[derive(
     Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay, Default,
 )]
@@ -115,6 +168,31 @@ pub enum Backend {
     Jvm,
 }
 
+/// Available optimization passes for improving generated code.
+///
+/// Different optimization passes focus on different aspects of code quality
+/// and can be independently enabled or disabled.
+///
+/// # Examples
+///
+/// Disable the Chain optimization:
+///
+/// ```no_run
+/// use bf::backend::{CompilerOptions, Optimization};
+///
+/// let mut opts = CompilerOptions::default();
+/// opts.disable(Optimization::Chain);
+/// ```
+///
+/// Disable multiple optimizations:
+///
+/// ```no_run
+/// use bf::backend::{CompilerOptions, Optimization};
+///
+/// let mut opts = CompilerOptions::default();
+/// opts.disable(Optimization::UselessOps);
+/// opts.disable(Optimization::DeadCode);
+/// ```
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum Optimization {
@@ -169,16 +247,61 @@ pub enum Optimization {
     SortOffsetOps,
 }
 
-/// A trait for implementing custom I/O for use with the JIT compiler.
+/// Custom I/O handler trait for use with JIT compilation.
+///
+/// Allows providing custom implementations of I/O operations,
+/// particularly useful for sandboxing and profiling.
+///
+/// # Examples
+///
+/// Implementing custom I/O:
+///
+/// ```no_run
+/// use bf::backend::CustomIo;
+///
+/// struct MyIO;
+///
+/// impl CustomIo for MyIO {
+///     fn getchar(&self) -> *const u8 {
+///         // Return pointer to custom getchar implementation
+///         unimplemented!()
+///     }
+///
+///     fn putchar(&self) -> *const u8 {
+///         // Return pointer to custom putchar implementation
+///         unimplemented!()
+///     }
+/// }
+/// ```
 pub trait CustomIo {
     /// Get a pointer to the getchar() function.
+    /// This function should read a single byte from input.
     fn getchar(&self) -> *const u8;
 
     /// Get a pointer to the putchar() function.
+    /// This function should write a single byte to output.
     fn putchar(&self) -> *const u8;
 }
 
 impl CompilerOptions {
+    /// Disable a specific optimization pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `opt` - The optimization to disable
+    ///
+    /// # Examples
+    ///
+    /// Disable multiple optimizations:
+    ///
+    /// ```
+    /// use bf::backend::{CompilerOptions, Optimization};
+    ///
+    /// let mut opts = CompilerOptions::default();
+    /// opts.disable(Optimization::Chain);
+    /// opts.disable(Optimization::DeadCode);
+    /// assert!(opts.no_optimize.contains(&Optimization::Chain));
+    /// ```
     pub fn disable(&mut self, opt: Optimization) {
         if !self.no_optimize.contains(&opt) {
             self.no_optimize.push(opt);

@@ -1,7 +1,17 @@
+//! LLVM-based code generation backend.
+//!
+//! This backend uses LLVM to compile Brainf*ck to object files that can be
+//! linked into executables.
+
+/// Copy loop optimization module
 mod copy;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
+/// Pointer manipulation implementation module
 mod ptr;
+/// Value operation implementation module
 mod value;
 
 use inkwell::{

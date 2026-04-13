@@ -1,3 +1,5 @@
+//! Benchmarks for JIT compilation of Brainf*ck programs.
+
 use criterion::{Criterion, criterion_main};
 use std::hint::black_box;
 

@@ -1,3 +1,5 @@
+//! Iterator utilities for working with instruction streams.
+
 use core::{fmt, iter::FusedIterator};
 
 pub trait StatefulMapIter: Iterator {

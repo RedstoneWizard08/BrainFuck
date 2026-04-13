@@ -1,7 +1,17 @@
+//! WebAssembly code generation backend.
+//!
+//! This backend compiles Brainf*ck to WebAssembly binaries that can
+//! be executed in browsers or WebAssembly runtimes.
+
+/// Copy loop optimization module
 mod copy;
+/// I/O operation implementation module
 mod io;
+/// Loop construct implementation module
 mod loops;
+/// Pointer manipulation implementation module
 mod ptr;
+/// Value operation implementation module
 mod value;
 
 use crate::{

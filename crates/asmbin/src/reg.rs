@@ -1,3 +1,8 @@
+//! Register definitions and utilities.
+//!
+//! This module defines all available x86-64 registers using the registers!
+//! procedural macro, providing methods for querying register properties.
+
 use asmbin_macros::registers;
 
 registers! {

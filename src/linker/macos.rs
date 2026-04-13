@@ -1,3 +1,5 @@
+//! macOS linker implementation using system linker tools.
+
 use crate::linker::command_exists;
 use anyhow::Result;
 use std::{

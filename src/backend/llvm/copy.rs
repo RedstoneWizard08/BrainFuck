@@ -1,3 +1,5 @@
+//! Copy loop code generation for the LLVM backend.
+
 use crate::backend::llvm::CodeGenerator;
 
 impl<'a, 'c> CodeGenerator<'a, 'c> {

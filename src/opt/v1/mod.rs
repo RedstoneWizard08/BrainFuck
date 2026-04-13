@@ -1,14 +1,31 @@
+//! Version 1 optimizer using sequential optimization passes.
+//!
+//! This module provides a straightforward approach to optimization with
+//! individual passes for different optimization strategies.
+
+/// Chain math operations optimization pass
 mod chain;
+/// Combination optimization passes
 mod combos;
+/// Copy loop pattern detection and optimization
 mod copy_loop;
+/// Dead code removal pass
 mod dead_code;
+/// Loop unrolling optimization
 mod loop_unroll;
+/// Loop-related optimizations
 mod loops;
+/// Offset-based operation optimizations
 mod offsets;
+/// Scanner pattern optimization
 mod scan;
+/// Set-and-move operation optimization
 mod set_move;
+/// Code simplification pass
 mod simplify;
+/// Remove useless code at end
 mod useless_end;
+/// Remove useless operations
 mod useless_ops;
 
 use crate::{

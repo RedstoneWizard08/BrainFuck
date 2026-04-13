@@ -1,3 +1,5 @@
+//! Windows linker implementation using system linker tools.
+
 use anyhow::Result;
 use lnk::ShellLink;
 use std::{

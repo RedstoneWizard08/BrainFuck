@@ -1,3 +1,5 @@
+//! Linux linker implementation using system linker tools.
+
 use anyhow::Result;
 use std::{
     path::PathBuf,

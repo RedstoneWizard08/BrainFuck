@@ -1,3 +1,32 @@
+//! Implementation of procedural macros for x86-64 register declaration.
+//!
+//! This crate implements the parsing and code generation for the `registers!` macro,
+//! which allows declarative specification of CPU registers with flexible configuration.
+//!
+//! # Examples
+//!
+//! The macro generates a `Reg` enum with methods for querying register properties:
+//!
+//! ```no_run
+//! # // This is pseudo-code showing what the macro generates
+//! #[repr(u8)]
+//! pub enum Reg {
+//!     Rax,
+//!     Rbx,
+//!     Rcx,
+//!     // ... all defined registers
+//! }
+//!
+//! impl Reg {
+//!     pub const fn string_name(&self, prefix: Prefix) -> &'static str { }
+//!     pub const fn bit_width(&self) -> usize { }
+//!     pub const fn group(&self) -> RegGroup { }
+//!     pub const fn id_bits(&self) -> u8 { }
+//!     pub const fn prefix(&self) -> Prefix { }
+//!     pub const fn is_ext(&self) -> bool { }
+//! }
+//! ```
+
 use std::collections::HashSet;
 
 use convert_case::{Case, Casing};
@@ -160,6 +189,24 @@ unsynn! {
 //     15 = #r;
 // }
 
+/// Represents instruction prefix types used in x86-64 encoding.
+///
+/// - `None`: No prefix
+/// - `Rex`: REX prefix for extended registers (registers 8-15)
+/// - `Evex`: EVEX prefix for SIMD instructions (512-bit registers)
+///
+/// # Examples
+///
+/// Checking register prefixes:
+///
+/// ```no_run
+/// let prefix_type = Prefix::Rex;
+/// match prefix_type {
+///     Prefix::None => println!("No prefix needed"),
+///     Prefix::Rex => println!("REX prefix for extended registers"),
+///     Prefix::Evex => println!("EVEX prefix for SIMD"),
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Prefix {
     None,
@@ -167,6 +214,33 @@ pub enum Prefix {
     Evex,
 }
 
+/// Represents the classification group of a CPU register.
+///
+/// Groups include:
+/// - `General8`: 8-bit general purpose registers
+/// - `General16`: 16-bit general purpose registers
+/// - `General32`: 32-bit general purpose registers
+/// - `General64`: 64-bit general purpose registers
+/// - `X87`: 80-bit x87 floating point stack registers
+/// - `Mmx64`: 64-bit MMX registers
+/// - `Xmm128`: 128-bit XMM SIMD registers
+/// - `Ymm256`: 256-bit YMM SIMD registers
+/// - `Zmm512`: 512-bit ZMM SIMD registers
+/// - `Segment16`: 16-bit segment registers
+/// - `Control32`: 32-bit control registers
+/// - `Debug32`: 32-bit debug registers
+///
+/// # Examples
+///
+/// Matching on register groups:
+///
+/// ```no_run
+/// match reg_info.group {
+///     RegGroup::General64 => println!("64-bit general purpose register"),
+///     RegGroup::Xmm128 => println!("128-bit SIMD register"),
+///     _ => println!("Other register type"),
+/// }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RegGroup {
     General8,
@@ -183,14 +257,43 @@ pub enum RegGroup {
     Debug32,
 }
 
+/// Complete information about an x86-64 register.
+///
+/// Tracks the register's name, classification, bit width, encoding prefix,
+/// alternative naming based on instruction prefix, and whether it's an extended register.
+///
+/// # Examples
+///
+/// Creating register information:
+///
+/// ```no_run
+/// let reg = RegInfo {
+///     name: "rax".to_string(),
+///     group: RegGroup::General64,
+///     bit_width: 64,
+///     prefix: Prefix::None,
+///     rex_name: None,
+///     id_bits: 0,
+///     is_ext: false,
+/// };
+///
+/// println!("Register {} is {} bits", reg.name, reg.bit_width);
+/// ```
 #[derive(Debug, Clone, Eq, Ord)]
 pub struct RegInfo {
+    /// The register name (e.g., "rax", "xmm0")
     pub name: String,
+    /// The functional group this register belongs to
     pub group: RegGroup,
+    /// The bit width of the register
     pub bit_width: usize,
+    /// The instruction prefix type needed for this register
     pub prefix: Prefix,
+    /// Alternative name when using REX prefix (e.g., "spl" instead of "ah" for register 4, 8-bit)
     pub rex_name: Option<String>,
+    /// The register ID in the encoding (0-15 for most registers)
     pub id_bits: u8,
+    /// Whether this is an extended register (8-15)
     pub is_ext: bool,
 }
 
@@ -625,7 +728,19 @@ pub fn codegen_decl(decl: RegisterDecl, regs: &mut HashSet<RegInfo>) {
     }
 }
 
+/// Trait for converting types to Rust identifiers.
+///
+/// # Examples
+///
+/// Converting a string to an identifier:
+///
+/// ```no_run
+/// let name = "my_register".to_string();
+/// let ident = name.id();
+/// // Can be used in quote!() macros for code generation
+/// ```
 pub trait ToIdent {
+    /// Converts self to an identifier suitable for code generation.
     fn id(&self) -> Ident;
 }
 
@@ -635,6 +750,19 @@ impl ToIdent for String {
     }
 }
 
+/// Generates Rust code for the Register enum and its methods.
+///
+/// Creates a complete Rust enum `Reg` with methods for querying register properties:
+/// - `string_name`: Get the string name of a register
+/// - `bit_width`: Get the bit width of a register
+/// - `group`: Get the functional group of a register
+/// - `id_bits`: Get the register ID used in encoding
+/// - `prefix`: Get the instruction prefix required
+/// - `is_ext`: Check if this is an extended register
+///
+/// # Arguments
+///
+/// * `regs` - The complete set of register information to codegen
 pub fn codegen_regs(regs: HashSet<RegInfo>) -> TokenStream {
     let regs = regs
         .into_iter()
@@ -798,6 +926,19 @@ pub fn codegen_regs(regs: HashSet<RegInfo>) -> TokenStream {
     }
 }
 
+/// Parses register declarations and generates code.
+///
+/// This is the main macro implementation function. It takes the token stream
+/// from the `registers!` macro invocation, parses the register declarations,
+/// generates register info structures, and returns the code for the Reg enum.
+///
+/// # Arguments
+///
+/// * `input` - The token stream from the macro invocation
+///
+/// # Returns
+///
+/// A TokenStream containing the generated Rust code, or an error if parsing fails
 pub fn registers(input: TokenStream) -> unsynn::Result<TokenStream> {
     let mut input = input.to_token_iter();
     let data = RegistersInput::parse(&mut input)?;

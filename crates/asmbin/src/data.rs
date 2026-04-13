@@ -1,3 +1,5 @@
+//! Data references for assembly operands (registers, memory, immediate values).
+
 use std::ops::{Add, Sub};
 
 use crate::reg::Reg;

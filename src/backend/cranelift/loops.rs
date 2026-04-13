@@ -1,3 +1,5 @@
+//! Loop construct code generation for the Cranelift backend.
+
 use crate::{backend::cranelift::CodeGenerator, opt::action::OptAction};
 use cranelift::prelude::{InstBuilder, IntCC};
 use cranelift_module::Module;
