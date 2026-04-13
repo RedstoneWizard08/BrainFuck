@@ -13,6 +13,9 @@ pub mod cranelift;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+#[cfg(feature = "jvm")]
+pub mod jvm;
+
 use enum_display::EnumDisplay;
 use serde::Serialize;
 use std::path::PathBuf;
@@ -105,6 +108,11 @@ pub enum Backend {
         default
     )]
     Wasm,
+
+    /// The JVM codegen backend.
+    /// Outputs a class file.
+    #[cfg(feature = "jvm")]
+    Jvm,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, EnumDisplay)]

@@ -200,6 +200,14 @@ impl Commands {
                         )?;
                     }
 
+                    #[cfg(feature = "jvm")]
+                    Backend::Jvm => {
+                        fs::write(
+                            output,
+                            crate::backend::jvm::CodeGenerator::run(&opts, &actions),
+                        )?;
+                    }
+
                     #[cfg(feature = "cranelift")]
                     Backend::Cranelift => {
                         let target = _target

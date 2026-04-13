@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "asm", "cranelift", "llvm", "wasm", "interp"]
+default = ["cli", "testing", "all", "interp"]
+
+# Enable all codegen backends.
+all = ["asm", "cranelift", "llvm", "jvm", "wasm"]
 
 # Enable the CLI interface.
 cli = ["dep:clap", "dep:pretty_env_logger"]
@@ -39,6 +42,9 @@ asm = []
 
 # Support the interpreter.
 interp = []
+
+# Support Java class output.
+jvm = ["dep:ristretto_classfile"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -85,6 +91,7 @@ once_cell = "1.21.4"
 parking_lot = { version = "0.12.5", features = ["owning_ref"] }
 pastey = "0.2.1"
 pretty_env_logger = { version = "0.5.0", optional = true }
+ristretto_classfile = { version = "0.30.0", optional = true }
 ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_stacker = "0.1.14"

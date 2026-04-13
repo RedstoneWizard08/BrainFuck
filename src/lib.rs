@@ -1,3 +1,9 @@
+// I mean, we already require the nightly compiler, so doing this for the cryaboutit module isn't that big of a deal.
+#![allow(incomplete_features, internal_features)]
+#![feature(sized_type_properties, generic_const_exprs, core_intrinsics)]
+// Anyways back to the main event
+#![cfg_attr(feature = "jvm", feature(const_trait_impl, const_ops))]
+
 pub mod backend;
 pub mod opt;
 
@@ -18,6 +24,9 @@ pub mod cli;
 
 #[cfg(feature = "testing")]
 pub mod testing;
+
+#[allow(unused)]
+mod cryaboutit;
 
 use serde::Serialize;
 

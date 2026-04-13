@@ -27,3 +27,6 @@ bf.zip
 /*.bin
 /llvm
 /a
+/*.class
+/*.java
+/*.jasm
