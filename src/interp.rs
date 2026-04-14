@@ -177,11 +177,11 @@ fn eval<W: Write, R: Read>(
 
         OptAction::CopyLoop(v) => {
             let ptr = state.tape_ptr;
-            let cur = i64::from(state.tape[wrap_to_index(state.tape_ptr)]);
+            let cur = state.tape[wrap_to_index(state.tape_ptr)] as i64;
 
             for (o, v) in v {
                 let pos = wrap_to_index(ptr + *o);
-                let val = i64::from(state.tape[pos]);
+                let val = state.tape[pos] as i64;
 
                 state.tape[pos] = wrapping_conv(val + cur * *v);
             }

@@ -19,6 +19,10 @@ pub mod opt;
 #[cfg(feature = "interp")]
 pub mod interp;
 
+/// Interpreter for executing Brainf*ck code directly, with unsafe optimizations
+#[cfg(feature = "interp")]
+pub mod interp_unsafe;
+
 /// WebAssembly code generation support
 #[cfg(feature = "web")]
 pub mod wasm;
@@ -142,28 +146,26 @@ pub enum Action {
 ///     _ => panic!("Expected a loop"),
 /// }
 /// ```
+#[cfg(not(feature = "unsafe-speed"))]
 pub fn parse(input: &str) -> Vec<Action> {
     let mut stack: Vec<Vec<Action>> = Vec::new();
 
     stack.push(Vec::new());
 
     for ch in input.chars() {
-        let cur = stack.last_mut().unwrap();
-
         match ch {
-            '>' => cur.push(Action::Right),
-            '<' => cur.push(Action::Left),
-            '+' => cur.push(Action::Inc),
-            '-' => cur.push(Action::Dec),
-            '.' => cur.push(Action::Output),
-            ',' => cur.push(Action::Input),
+            '>' => stack.last_mut().unwrap().push(Action::Right),
+            '<' => stack.last_mut().unwrap().push(Action::Left),
+            '+' => stack.last_mut().unwrap().push(Action::Inc),
+            '-' => stack.last_mut().unwrap().push(Action::Dec),
+            '.' => stack.last_mut().unwrap().push(Action::Output),
+            ',' => stack.last_mut().unwrap().push(Action::Input),
             '[' => stack.push(Vec::new()),
 
             ']' => {
                 let last = stack.pop().unwrap();
-                let cur = stack.last_mut().unwrap();
 
-                cur.push(Action::Loop(last));
+                stack.last_mut().unwrap().push(Action::Loop(last));
             }
 
             _ => (),
@@ -172,6 +174,88 @@ pub fn parse(input: &str) -> Vec<Action> {
 
     if stack.len() != 1 {
         panic!("Stack length was {} when it should be 1!", stack.len());
+    }
+
+    stack.remove(0)
+}
+
+/// Parses a Brainf*ck program string into an abstract syntax tree of Actions.
+///
+/// This function scans the input string character by character and builds a nested
+/// vector structure representing the program's actions, properly handling loop nesting.
+///
+/// # Arguments
+///
+/// * `input` - A string containing Brainf*ck source code
+///
+/// # Returns
+///
+/// A vector of Actions representing the parsed program
+///
+/// # Panics
+///
+/// Panics if the bracket nesting is unbalanced (more closing brackets than opening)
+///
+/// # Examples
+///
+/// Parse a simple increment and output program:
+///
+/// ```
+/// use bf::parse;
+/// use bf::Action;
+///
+/// let program = "+++.";
+/// let actions = parse(program);
+/// assert_eq!(actions, vec![
+///     Action::Inc,
+///     Action::Inc,
+///     Action::Inc,
+///     Action::Output,
+/// ]);
+/// ```
+///
+/// Parse a program with loops:
+///
+/// ```
+/// use bf::parse;
+/// use bf::Action;
+///
+/// let program = "[>+<-]";
+/// let actions = parse(program);
+/// assert_eq!(actions.len(), 1);
+/// match &actions[0] {
+///     Action::Loop(body) => {
+///         assert_eq!(body.len(), 4);
+///     }
+///     _ => panic!("Expected a loop"),
+/// }
+/// ```
+#[cfg(feature = "unsafe-speed")]
+pub fn parse(input: &str) -> Vec<Action> {
+    let mut stack: Vec<Vec<Action>> = Vec::new();
+
+    stack.push(Vec::new());
+
+    for ch in input.chars() {
+        let pos = stack.len() - 1;
+
+        match ch {
+            '>' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Right),
+            '<' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Left),
+            '+' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Inc),
+            '-' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Dec),
+            '.' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Output),
+            ',' => unsafe { stack.get_unchecked_mut(pos) }.push(Action::Input),
+            '[' => stack.push(Vec::new()),
+
+            ']' => {
+                let last = stack.pop().unwrap();
+
+                unsafe { stack.get_unchecked_mut(pos - 1) }.push(Action::Loop(last));
+            }
+
+            _ => (),
+        }
     }
 
     stack.remove(0)

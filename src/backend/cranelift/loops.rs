@@ -30,4 +30,30 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
         self.b.seal_block(header);
         self.b.seal_block(exit);
     }
+
+    pub(super) fn scan(&mut self, skip: i64) {
+        // TODO: repne scasb
+
+        let header = self.b.create_block();
+        let body = self.b.create_block();
+        let exit = self.b.create_block();
+
+        self.b.ins().jump(header, &[]);
+        self.b.switch_to_block(header);
+
+        let value = self.read_from_arr();
+        let cond = self.b.ins().icmp_imm(IntCC::NotEqual, value, 0);
+
+        self.b.ins().brif(cond, body, &[], exit, &[]);
+
+        self.b.switch_to_block(body);
+        self.b.seal_block(body);
+
+        self.move_ptr(skip);
+
+        self.b.ins().jump(header, &[]);
+        self.b.switch_to_block(exit);
+        self.b.seal_block(header);
+        self.b.seal_block(exit);
+    }
 }

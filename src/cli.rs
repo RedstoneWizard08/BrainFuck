@@ -122,6 +122,10 @@ pub enum Commands {
 
         #[command(flatten)]
         opts: CompilerOptions,
+
+        /// Use unsafe optimizations for memory access.
+        #[arg(short, long = "unsafe")]
+        unsafe_: bool,
     },
 
     /// Compile a BrainFuck program.
@@ -157,13 +161,10 @@ impl Commands {
             #[cfg(feature = "cranelift")]
             Self::Jit {
                 file,
-                mut opts,
+                opts,
                 #[cfg(feature = "llvm")]
                 llvm,
             } => {
-                // Not yet supported on this backend
-                opts.disable(crate::backend::Optimization::Scanners);
-
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = if opts.opt_v1 {
@@ -195,9 +196,11 @@ impl Commands {
             }
 
             #[cfg(feature = "interp")]
-            Self::Interpret { file, mut opts } => {
-                opts.disable(crate::backend::Optimization::Scanners); // TODO
-
+            Self::Interpret {
+                file,
+                opts,
+                unsafe_,
+            } => {
                 let actions = parse(&fs::read_to_string(file)?);
 
                 let actions = if opts.opt_v1 {
@@ -208,7 +211,17 @@ impl Commands {
                     crate::opt::v2::optimize_v2(&actions, &opts)
                 };
 
-                crate::interp::interpret(&actions, &mut std::io::stdout(), &mut std::io::stdin());
+                let stdout = std::io::stdout();
+                let mut stdin = std::io::stdin();
+                let mut stdout = stdout.lock();
+
+                if unsafe_ {
+                    unsafe {
+                        crate::interp_unsafe::interpret(&actions, &mut stdout, &mut stdin);
+                    }
+                } else {
+                    crate::interp::interpret(&actions, &mut stdout, &mut stdin);
+                }
             }
 
             #[allow(unused_mut)]
@@ -220,12 +233,6 @@ impl Commands {
                 mut opts,
             } => {
                 let actions = parse(&fs::read_to_string(file)?);
-
-                #[cfg(feature = "cranelift")]
-                if opts.backend == crate::backend::Backend::Cranelift {
-                    // Not yet supported on this backend
-                    opts.disable(crate::backend::Optimization::Scanners);
-                }
 
                 #[cfg(feature = "wasm")]
                 if opts.backend == crate::backend::Backend::Wasm {

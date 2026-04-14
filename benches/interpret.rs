@@ -1,18 +1,21 @@
 //! Benchmarks for the interpreter performance.
 
-use std::io::Cursor;
-
-use bf::{interp::interpret, opt::v1::Optimizer, parse};
+use bf::{backend::CompilerOptions, interp::interpret, parse};
 use criterion::{Criterion, criterion_group, criterion_main};
+use std::io::Cursor;
 
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
 
 fn hello_world(c: &mut Criterion) {
     let program = parse(HELLO_WORLD);
 
-    let program = Optimizer::new(&Default::default(), program)
-        .run_all()
-        .finish();
+    let program = bf::opt::v2::optimize_v2(
+        &program,
+        &CompilerOptions {
+            opt_level: 8,
+            ..Default::default()
+        },
+    );
 
     let mut dummy = Vec::new();
     let mut dummy2 = Cursor::new(Vec::new());

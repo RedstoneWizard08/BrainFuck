@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "all", "interp"]
+default = ["cli", "testing", "all", "interp", "unsafe-speed"]
 
 # Enable all codegen backends.
 all = ["asm", "cranelift", "llvm", "jvm", "wasm"]
@@ -45,6 +45,9 @@ interp = []
 
 # Support Java class output.
 jvm = ["dep:ristretto_classfile"]
+
+# Enable unsafe compiler speed optimizations.
+unsafe-speed = []
 
 [lib]
 crate-type = ["cdylib", "rlib"]

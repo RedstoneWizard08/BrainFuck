@@ -1,6 +1,5 @@
 //! Benchmarks for optimization pass performance.
 
-use bf::opt::v1::Optimizer;
 use criterion::criterion_main;
 
 pub const HELLO_WORLD: &str = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
@@ -19,11 +18,10 @@ macro_rules! optim_bench {
                 let prog = bf::parse(pastey::paste! { [<$name:upper>] });
 
                 b.iter(|| {
-                    std::hint::black_box(Optimizer::new(
+                    std::hint::black_box(bf::opt::v2::optimize_v2(
+                        std::hint::black_box(&prog),
                         std::hint::black_box(&opts),
-                        std::hint::black_box(prog.clone()),
                     ))
-                    .run_all()
                 });
             },
         );

@@ -26,9 +26,8 @@ pub enum ValueInsn {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BfInsn {
-    #[default]
     Noop,
     Value(ValueInsn),
     OffsetValue(ValueInsn, i64),
@@ -40,6 +39,12 @@ pub enum BfInsn {
 
     /// 0 = how many cells to skip while scanning
     Scan(i64),
+}
+
+impl Default for BfInsn {
+    fn default() -> Self {
+        Self::Noop
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]

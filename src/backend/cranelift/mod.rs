@@ -9,10 +9,10 @@ mod copy;
 mod io;
 /// Loop construct implementation module
 mod loops;
-/// Utility function for Cranelift code generation
-mod util;
 /// Pointer manipulation implementation module
 mod ptr;
+/// Utility function for Cranelift code generation
+mod util;
 /// Value operation implementation module
 mod value;
 
@@ -307,7 +307,7 @@ impl<'a, M: Module> CodeGenerator<'a, M> {
             OptAction::SetAndMove(v, o) => self.set_move(*v, *o),
             OptAction::AddAndMove(v, o) => self.add_move(*v, *o),
             OptAction::CopyLoop(v) => self.copy_loop(&v),
-            OptAction::Scan(_skip) => todo!(),
+            OptAction::Scan(skip) => self.scan(*skip),
         }
     }
 }
