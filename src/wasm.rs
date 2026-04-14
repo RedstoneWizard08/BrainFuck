@@ -19,14 +19,19 @@
 compile_error!("Web interop requires the WASM backend!");
 
 use crate::{
-    backend::{CompilerOptions, wasm::CodeGenerator},
-    opt::Optimizer,
+    backend::{CompilerOptions, Optimization, wasm::CodeGenerator},
+    opt::v2::optimize_v2,
     parse,
 };
-use js_sys::{BigInt, Function, Map, Number, Reflect, Undefined, WebAssembly};
-use std::time::Instant;
+use js_sys::{BigInt, Function, Number, Object, Reflect, Undefined, WebAssembly};
 use wasm_bindgen::{JsCast, JsValue, prelude::wasm_bindgen};
-use wasm_bindgen_futures::JsFuture;
+use web_time::Instant;
+
+#[wasm_bindgen(start)]
+pub fn init() {
+    console_error_panic_hook::set_once();
+    console_log::init_with_level(log::Level::Debug).unwrap();
+}
 
 /// Compiles and runs a Brainf*ck program in the browser.
 ///
@@ -44,28 +49,30 @@ use wasm_bindgen_futures::JsFuture;
 /// A Promise that resolves to a JavaScript object containing execution results
 #[wasm_bindgen]
 pub async fn compile_run(
-    code: &str,
-    read: Function<fn() -> Number>,
-    write: Function<fn(Number) -> Undefined>,
-    finisher: Function<fn(BigInt) -> Undefined>,
+    code: String,
+    read: &Function<fn() -> Number>,
+    write: &Function<fn(Number) -> Undefined>,
+    finisher: &Function<fn(BigInt) -> Undefined>,
 ) {
     let opts = CompilerOptions {
         opt_level: 8,
+        no_optimize: vec![Optimization::Scanners],
         ..Default::default()
     };
 
-    let program = parse(code);
-    let program = Optimizer::new(&opts, program).run_all().finish();
+    let program = parse(&code);
+    let program = optimize_v2(&program, &opts);
     let module = CodeGenerator::run(&opts, &program);
+    let bf = Object::new();
 
-    let obj = Map::new().set(
-        &"bf".into(),
-        &Map::new()
-            .set(&"putchar".into(), &write)
-            .set(&"getchar".into(), &read),
-    );
+    Reflect::set(&bf, &"putchar".into(), &write).unwrap();
+    Reflect::set(&bf, &"getchar".into(), &read).unwrap();
 
-    let module = JsFuture::from(WebAssembly::instantiate_streaming(&module.into(), &obj))
+    let obj = Object::new();
+
+    Reflect::set(&obj, &"bf".into(), &bf).unwrap();
+
+    let module = WebAssembly::instantiate_buffer(&module, &obj)
         .await
         .unwrap();
 
@@ -88,4 +95,18 @@ pub async fn compile_run(
     finisher
         .call1(&JsValue::undefined(), &now.elapsed().as_millis().into())
         .unwrap();
+}
+
+#[wasm_bindgen]
+pub fn compile(code: String) -> Vec<u8> {
+    let opts = CompilerOptions {
+        opt_level: 8,
+        no_optimize: vec![Optimization::Scanners],
+        ..Default::default()
+    };
+
+    let program = parse(&code);
+    let program = optimize_v2(&program, &opts);
+
+    CodeGenerator::run(&opts, &program)
 }

@@ -3,6 +3,8 @@
 
 # [build]
 # target = "wasm32-unknown-unknown"
+
+# [target.wasm32-unknown-unknown]
 # rustflags = ["-C", "panic=unwind"]
 
 # [profile.release]

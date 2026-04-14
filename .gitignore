@@ -30,3 +30,4 @@ bf.zip
 /*.class
 /*.java
 /*.jasm
+/expanded.rs

@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["cli", "testing", "all", "interp", "unsafe-speed"]
+default = ["all", "cli", "testing", "interp", "unsafe-speed"]
 
 # Enable all codegen backends.
 all = ["asm", "cranelift", "llvm", "jvm", "wasm"]
 
 # Enable the CLI interface.
-cli = ["dep:clap", "dep:pretty_env_logger"]
+cli = ["dep:clap", "dep:pretty_env_logger", "dep:clap-verbosity-flag"]
 
 # Tools for testing.
 testing = []
@@ -26,19 +26,33 @@ cranelift = [
     "dep:target-lexicon",
     "dep:lnk",
     "dep:which",
+    "dep:tempfile",
 ]
 
 # Support AOT & JIT compilation with LLVM.
-llvm = ["dep:inkwell", "dep:target-lexicon"]
+llvm = [
+    "dep:inkwell",
+    "dep:target-lexicon",
+    "dep:tempfile",
+    "dep:which",
+    "dep:lnk",
+]
 
 # Support WASM interop.
-web = ["dep:wasm-bindgen", "dep:js-sys", "dep:wasm-bindgen-futures"]
+web = [
+    "dep:wasm-bindgen",
+    "dep:js-sys",
+    "dep:wasm-bindgen-futures",
+    "dep:console_error_panic_hook",
+    "dep:console_log",
+    "dep:web-time",
+]
 
 # Support the WASM backend.
 wasm = ["dep:wasm-encoder", "dep:wasmparser"]
 
 # Support the raw ASM backend.
-asm = []
+asm = ["dep:asmbin", "dep:object"]
 
 # Support the interpreter.
 interp = []
@@ -59,11 +73,13 @@ required-features = ["cli"]
 
 [dependencies]
 anyhow = "1.0.102"
-asmbin = { version = "0.1.0", path = "crates/asmbin" }
+asmbin = { version = "0.1.0", path = "crates/asmbin", optional = true }
 clap = { version = "4.6.0", features = ["derive"], optional = true }
-clap-verbosity-flag = { version = "3.0.4", default-features = false, features = [
+clap-verbosity-flag = { version = "3.0.4", optional = true, default-features = false, features = [
     "log",
 ] }
+console_error_panic_hook = { version = "0.1.2", optional = true }
+console_log = { version = "1.0.0", optional = true }
 cranelift = { version = "0.130.1", optional = true }
 cranelift-codegen = { version = "0.130.1", optional = true, features = [
     "capstone",
@@ -83,7 +99,7 @@ inkwell = { version = "0.8.0", git = "https://github.com/TheDan64/inkwell", rev 
 itertools = "0.14.0"
 js-sys = { version = "0.3.91", optional = true }
 log = "0.4.29"
-object = { version = "0.39.0", features = [
+object = { version = "0.39.0", optional = true, features = [
     "write",
     "core",
     "alloc",
@@ -99,11 +115,12 @@ ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_stacker = "0.1.14"
 target-lexicon = { version = "0.13.5", optional = true }
-tempfile = "3.27.0"
+tempfile = { version = "3.27.0", optional = true }
 wasm-bindgen = { version = "0.2.114", optional = true }
 wasm-bindgen-futures = { version = "0.4.68", optional = true }
 wasm-encoder = { version = "0.246.2", optional = true }
 wasmparser = { version = "0.246.2", optional = true }
+web-time = { version = "1.1.0", optional = true }
 which = { version = "8.0.2", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
